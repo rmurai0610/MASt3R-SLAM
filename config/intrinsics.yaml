@@ -1,6 +1,7 @@
-width: 640
-height: 480
-# With distortion (fx, fy, cx, cy, k1, k2, p1, p2)
+inherit: "config/base.yaml"
+
+use_calib: True
+# With distortion (fx, fy, cx, cy, k1, k2, p1, p2, k3)
 calibration:  [517.3, 516.5, 318.6, 255.3, 0.2624, -0.9531, -0.0054, 0.0026, 1.1633]
 
 # Without distortion (fx, fy, cx, cy)

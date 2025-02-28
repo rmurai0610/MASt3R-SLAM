@@ -155,7 +155,6 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="config/base.yaml")
     parser.add_argument("--save-as", default="default")
     parser.add_argument("--no-viz", action="store_true")
-    parser.add_argument("--calib", default="")
 
     args = parser.parse_args()
 
@@ -169,18 +168,14 @@ if __name__ == "__main__":
 
     dataset = load_dataset(args.dataset)
     dataset.subsample(config["dataset"]["subsample"])
-    h, w = dataset.get_img_shape()[0]
+    (resized_h, resized_w), (raw_h, raw_w) = dataset.get_img_shape()
 
-    if args.calib:
-        with open(args.calib, "r") as f:
-            intrinsics = yaml.load(f, Loader=yaml.SafeLoader)
-        config["use_calib"] = True
-        dataset.use_calibration = True
+    if "calibration" in config.keys():
         dataset.camera_intrinsics = Intrinsics.from_calib(
             dataset.img_size,
-            intrinsics["width"],
-            intrinsics["height"],
-            intrinsics["calibration"],
+            raw_w,
+            raw_h,
+            config["calibration"],
         )
 
     keyframes = SharedKeyframes(manager, h, w)
