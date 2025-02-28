@@ -156,7 +156,9 @@ if __name__ == "__main__":
     parser.add_argument("--save-as", default="default")
     parser.add_argument("--no-viz", action="store_true")
     parser.add_argument("--calib", default="")
-
+    parser.add_argument("--is-bag", action="store_true", default=False)
+    parser.add_argument("--compressed-image-topic", default=None)
+    parser.add_argument("--camera-info-topic", default=None)
     args = parser.parse_args()
 
     load_config(args.config)
@@ -167,7 +169,7 @@ if __name__ == "__main__":
     main2viz = new_queue(manager, args.no_viz)
     viz2main = new_queue(manager, args.no_viz)
 
-    dataset = load_dataset(args.dataset)
+    dataset = load_dataset(args.dataset, args.is_bag, args.compressed_image_topic, args.camera_info_topic)
     dataset.subsample(config["dataset"]["subsample"])
     h, w = dataset.get_img_shape()[0]
 

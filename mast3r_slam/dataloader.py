@@ -6,12 +6,21 @@ import numpy as np
 import torch
 import pyrealsense2 as rs
 import yaml
+import rosbags
+from pathlib import Path
+
+from rosbags.highlevel import AnyReader
+from rosbags.typesys import Stores, get_typestore
+import cv2
 
 from mast3r_slam.mast3r_utils import resize_img
 from mast3r_slam.config import config
 
 from torchcodec.decoders import VideoDecoder
+import logging
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='mast3r_dataloader.log')
+logger = logging.getLogger(__name__)
 
 class MonocularDataset(torch.utils.data.Dataset):
     def __init__(self, dtype=np.float32):
@@ -198,6 +207,65 @@ class RealsenseDataset(MonocularDataset):
         img = img.astype(self.dtype)
         return img
 
+class ROSBagDataset(MonocularDataset):
+    def __init__(self, dataset_path, compressed_image_topic, camera_info_topic=None):
+        super().__init__()
+        self.dataset_path = pathlib.Path(dataset_path)
+        self.compressed_image_topic = compressed_image_topic
+        self.camera_info_topic = camera_info_topic
+        self.reader = AnyReader([Path(self.dataset_path)])
+        self.reader.open()
+        self.timestamps = []
+        img_connections = [x for x in self.reader.connections if x.topic == self.compressed_image_topic]
+        self.img_messages = self.reader.messages(connections=img_connections)
+        camera_info_connections = [x for x in self.reader.connections if x.topic == self.camera_info_topic]
+        self.camera_info_messages = self.reader.messages(connections=camera_info_connections)
+        self.camera_intrinsics = self.get_intrinsics(self.img_size)
+    @staticmethod
+    def CompressedImageMsg2Img(msg):
+        img = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img
+    
+    def __len__(self):
+        count = self.reader.topics[self.compressed_image_topic].msgcount - 1
+        logger.info(f"Number of images in {self.dataset_path}: {count}")
+        return count
+
+    def get_timestamp(self, idx):
+        return self.timestamps[idx]
+
+    def read_img(self, idx):
+        logger.info(f"Reading image {idx} from {self.dataset_path}")
+        connection, timestamp, raw_msg = next(self.img_messages)
+        msg = self.reader.deserialize(raw_msg, connection.msgtype)
+        # if self.img_h == 0:
+        #     self.img_h, self.img_w = msg.height, msg.width
+        img = self.CompressedImageMsg2Img(msg)
+        self.timestamps.append(timestamp/1e9)
+        return img
+    
+    def __del__(self):
+        self.reader.close()
+        
+    def get_intrinsics(self, img_size):
+        connection, timestamp, raw_msg = next(self.camera_info_messages)
+        msg = self.reader.deserialize(raw_msg, connection.msgtype)
+        K = np.array(msg.k).reshape(3, 3)
+        K_opt = K.copy()
+        distortion = np.array(msg.d)
+        W = msg.width
+        H = msg.height
+        mapx, mapy = None, None
+        center = config["dataset"]["center_principle_point"]
+        K_opt, _ = cv2.getOptimalNewCameraMatrix(
+            K, distortion, (W, H), 0, (W, H), centerPrincipalPoint=center
+        )
+        mapx, mapy = cv2.initUndistortRectifyMap(
+            K, distortion, None, K_opt, (W, H), cv2.CV_32FC1
+        )
+        return Intrinsics(img_size, W, H, K, K_opt, distortion, mapx, mapy)
+        
 
 class Webcam(MonocularDataset):
     def __init__(self):
@@ -299,7 +367,9 @@ class Intrinsics:
         return Intrinsics(img_size, W, H, K, K_opt, distortion, mapx, mapy)
 
 
-def load_dataset(dataset_path):
+def load_dataset(dataset_path, is_bag=False, compressed_image_topic=None, camera_info_topic=None):
+    if is_bag:
+        return ROSBagDataset(dataset_path, compressed_image_topic, camera_info_topic)
     split_dataset_type = dataset_path.split("/")
     if "tum" in split_dataset_type:
         return TUMDataset(dataset_path)
@@ -317,4 +387,5 @@ def load_dataset(dataset_path):
     ext = split_dataset_type[-1].split(".")[-1]
     if ext in ["mp4", "avi", "MOV", "mov"]:
         return MP4Dataset(dataset_path)
+
     return RGBFiles(dataset_path)
