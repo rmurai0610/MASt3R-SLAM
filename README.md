@@ -81,8 +81,8 @@ python main.py --dataset <path/to/folder> --config config/base.yaml
 ```
 If the calibration parameters are known, you can specify them in intrinsics.yaml
 ```
-python main.py --dataset <path/to/video>.mp4 --config config/base.yaml --calib config/intrinsics.yaml
-python main.py --dataset <path/to/folder> --config config/base.yaml --calib config/intrinsics.yaml
+python main.py --dataset <path/to/video>.mp4 --config config/intrinsics.yaml
+python main.py --dataset <path/to/folder> --config config/intrinsics.yaml
 ```
 
 ## Downloading Dataset
