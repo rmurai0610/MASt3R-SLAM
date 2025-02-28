@@ -17,7 +17,10 @@ from mast3r_slam.mast3r_utils import resize_img
 from mast3r_slam.config import config
 
 from torchcodec.decoders import VideoDecoder
+import logging
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='mast3r_dataloader.log')
+logger = logging.getLogger(__name__)
 
 class MonocularDataset(torch.utils.data.Dataset):
     def __init__(self, dtype=np.float32):
@@ -225,13 +228,15 @@ class ROSBagDataset(MonocularDataset):
         return img
     
     def __len__(self):
-        count = self.reader.topics[self.compressed_image_topic].msgcount
+        count = self.reader.topics[self.compressed_image_topic].msgcount - 1
+        logger.info(f"Number of images in {self.dataset_path}: {count}")
         return count
 
     def get_timestamp(self, idx):
         return self.timestamps[idx]
 
     def read_img(self, idx):
+        logger.info(f"Reading image {idx} from {self.dataset_path}")
         connection, timestamp, raw_msg = next(self.img_messages)
         msg = self.reader.deserialize(raw_msg, connection.msgtype)
         # if self.img_h == 0:
