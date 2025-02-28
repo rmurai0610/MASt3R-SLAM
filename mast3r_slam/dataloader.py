@@ -202,7 +202,6 @@ class RealsenseDataset(MonocularDataset):
 class Webcam(MonocularDataset):
     def __init__(self):
         super().__init__()
-        self.use_calibration = False
         self.dataset_path = None
         # load webcam using opencv
         self.cap = cv2.VideoCapture(-1)
@@ -227,7 +226,6 @@ class Webcam(MonocularDataset):
 class MP4Dataset(MonocularDataset):
     def __init__(self, dataset_path):
         super().__init__()
-        self.use_calibration = False
         self.dataset_path = pathlib.Path(dataset_path)
         self.decoder = VideoDecoder(str(self.dataset_path))
         self.fps = self.decoder.metadata.average_fps
@@ -250,7 +248,6 @@ class MP4Dataset(MonocularDataset):
 class RGBFiles(MonocularDataset):
     def __init__(self, dataset_path):
         super().__init__()
-        self.use_calibration = False
         self.dataset_path = pathlib.Path(dataset_path)
         self.rgb_files = natsorted(list((self.dataset_path).glob("*.png")))
         self.timestamps = np.arange(0, len(self.rgb_files)).astype(self.dtype) / 30.0
