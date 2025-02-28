@@ -1,0 +1,29 @@
+services:
+  mast3r-slam:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      target: deploy
+      # args:
+      #   TORCH_CUDA_ARCH_LIST: "8.9"
+      #   CUDA_HOME: "/usr/local/cuda"
+      #   PATH: "/usr/local/cuda/bin:$PATH"
+      #   LD_LIBRARY_PATH: "/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+
+    image: mast3r-slam:master
+    environment:
+      - DISPLAY=$DISPLAY
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ../checkpoints:/workspace/checkpoints:ro
+      - ../datasets:/workspace/datasets:ro
+      - ../resources:/workspace/resources:ro
+      - ../scripts:/workspace/scripts
+      - ../config:/workspace/config
+      - ../logs:/workspace/logs
+    shm_size: 24gb
+    tty: true
+    stdin_open: true
+    gpus: all

@@ -1,0 +1,16 @@
+checkpoints/
+config/
+datasets/
+docker/
+groundtruths/
+logs/
+media/
+resources/
+scripts/
+
+.dockerignore
+.gitignore
+.gitmodules
+Dependencies.md
+LICENSE.md
+README.md
