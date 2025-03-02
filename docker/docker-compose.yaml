@@ -16,7 +16,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
       - ../checkpoints:/workspace/checkpoints:ro
       - ../datasets:/workspace/datasets:ro
       - ../resources:/workspace/resources:ro
