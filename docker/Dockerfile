@@ -22,8 +22,6 @@ RUN apt-get update && apt-get install -y \
   curl \
   python3.11 \
   python3.11-dev \
-  libglib2.0-0 \
-  libusb-1.0-0 \
   && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python
