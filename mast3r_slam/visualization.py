@@ -27,7 +27,7 @@ from mast3r_slam.visualization_utils import (
     depth2rgb,
     image_with_text,
 )
-from mast3r_slam.config import load_config, config
+from mast3r_slam.config import load_config, config, set_global_config
 
 
 @dataclasses.dataclass
@@ -380,8 +380,8 @@ class Window(WindowEvents):
         return frame.X_canon.cpu().numpy().astype(np.float32)
 
 
-def run_visualization(states, keyframes, main2viz, viz2main, config_path) -> None:
-    load_config(config_path)
+def run_visualization(cfg, states, keyframes, main2viz, viz2main) -> None:
+    set_global_config(cfg)
 
     config_cls = Window
     backend = "glfw"

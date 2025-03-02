@@ -23,7 +23,6 @@ def load_config(path="config/base.yaml", is_parent=False):
     )
 
     with open(path, "r") as f:
-        print(path)
         cfg = yaml.load(f, Loader=loader)
     inherit = cfg.get("inherit")
     if inherit is not None:
@@ -35,10 +34,7 @@ def load_config(path="config/base.yaml", is_parent=False):
         return cfg
 
     # update the global config only once at the child node
-    global config
-    config.update(cfg)
-
-    return config
+    set_global_config(cfg)
 
 
 def merge_config(dict1, dict2):
@@ -50,3 +46,9 @@ def merge_config(dict1, dict2):
         else:
             dict1[k] = v
     return dict1
+
+
+def set_global_config(cfg):
+    global config
+    config.update(cfg)
+    return config

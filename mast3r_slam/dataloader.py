@@ -147,7 +147,6 @@ class SevenScenesDataset(MonocularDataset):
 class RealsenseDataset(MonocularDataset):
     def __init__(self):
         super().__init__()
-        self.use_calibration = False
         self.dataset_path = None
         self.pipeline = rs.pipeline()
         # self.h, self.w = 720, 1280
@@ -166,6 +165,20 @@ class RealsenseDataset(MonocularDataset):
             self.profile.get_stream(rs.stream.color)
         )
         self.save_results = False
+
+        if self.use_calibration:
+            rgb_intrinsics = self.rgb_profile.get_intrinsics()
+            self.camera_intrinsics = Intrinsics.from_calib(
+                self.img_size,
+                self.w,
+                self.h,
+                [
+                    rgb_intrinsics.fx,
+                    rgb_intrinsics.fy,
+                    rgb_intrinsics.ppx,
+                    rgb_intrinsics.ppy,
+                ],
+            )
 
     def __len__(self):
         return 999999
@@ -225,7 +238,7 @@ class MP4Dataset(MonocularDataset):
         return self.total_frames // self.stride
 
     def read_img(self, idx):
-        img = self.decoder[idx]  # c,h,w
+        img = self.decoder[idx * self.stride]  # c,h,w
         img = img.permute(1, 2, 0)
         img = img.numpy()
         img = img.astype(self.dtype)

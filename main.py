@@ -7,10 +7,11 @@ import cv2
 import lietorch
 import torch
 import tqdm
+import yaml
 from mast3r_slam.global_opt import FactorGraph
 
-from mast3r_slam.config import load_config, config
-from mast3r_slam.dataloader import load_dataset
+from mast3r_slam.config import load_config, config, set_global_config
+from mast3r_slam.dataloader import Intrinsics, load_dataset
 import mast3r_slam.evaluate as eval
 from mast3r_slam.frame import Mode, SharedKeyframes, SharedStates, create_frame
 from mast3r_slam.mast3r_utils import (
@@ -70,8 +71,8 @@ def relocalization(frame, keyframes, factor_graph, retrieval_database):
         return successful_loop_closure
 
 
-def run_backend(config_path, model, states, keyframes, K):
-    load_config(config_path)
+def run_backend(cfg, model, states, keyframes, K):
+    set_global_config(cfg)
 
     device = keyframes.device
     factor_graph = FactorGraph(model, keyframes, K, device)
@@ -154,6 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="config/base.yaml")
     parser.add_argument("--save-as", default="default")
     parser.add_argument("--no-viz", action="store_true")
+    parser.add_argument("--calib", default="")
 
     args = parser.parse_args()
 
@@ -167,15 +169,27 @@ if __name__ == "__main__":
 
     dataset = load_dataset(args.dataset)
     dataset.subsample(config["dataset"]["subsample"])
-
     h, w = dataset.get_img_shape()[0]
+
+    if args.calib:
+        with open(args.calib, "r") as f:
+            intrinsics = yaml.load(f, Loader=yaml.SafeLoader)
+        config["use_calib"] = True
+        dataset.use_calibration = True
+        dataset.camera_intrinsics = Intrinsics.from_calib(
+            dataset.img_size,
+            intrinsics["width"],
+            intrinsics["height"],
+            intrinsics["calibration"],
+        )
+
     keyframes = SharedKeyframes(manager, h, w)
     states = SharedStates(manager, h, w)
 
     if not args.no_viz:
         viz = mp.Process(
             target=run_visualization,
-            args=(states, keyframes, main2viz, viz2main, args.config),
+            args=(config, states, keyframes, main2viz, viz2main),
         )
         viz.start()
 
@@ -184,6 +198,7 @@ if __name__ == "__main__":
 
     has_calib = dataset.has_calib()
     use_calib = config["use_calib"]
+
     if use_calib and not has_calib:
         print("[Warning] No calibration provided for this dataset!")
         sys.exit(0)
@@ -207,9 +222,7 @@ if __name__ == "__main__":
     tracker = FrameTracker(model, keyframes, device)
     last_msg = WindowMsg()
 
-    backend = mp.Process(
-        target=run_backend, args=(args.config, model, states, keyframes, K)
-    )
+    backend = mp.Process(target=run_backend, args=(config, model, states, keyframes, K))
     backend.start()
 
     i = 0
