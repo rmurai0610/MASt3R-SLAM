@@ -15,6 +15,8 @@ services:
       - DISPLAY=$DISPLAY
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+    devices:
+      - /dev/dri:/dev/dri:ro
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       - ../checkpoints:/workspace/checkpoints:ro
