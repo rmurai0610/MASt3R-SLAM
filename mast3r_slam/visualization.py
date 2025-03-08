@@ -166,9 +166,10 @@ class Window(WindowEvents):
                     thickness=self.line_thickness * self.scale,
                 )
 
-            ptex, ctex, itex = self.textures[keyframe.frame_id]
-            if self.show_all:
-                self.render_pointmap(keyframe.T_WC.cpu(), w, h, ptex, ctex, itex)
+            if keyframe.frame_id in self.textures:
+                ptex, ctex, itex = self.textures[keyframe.frame_id]
+                if self.show_all:
+                    self.render_pointmap(keyframe.T_WC.cpu(), w, h, ptex, ctex, itex)
 
         if self.show_keyframe_edges:
             with self.states.lock:
@@ -190,27 +191,28 @@ class Window(WindowEvents):
             if config["use_calib"]:
                 curr_frame.K = self.keyframes.get_intrinsics()
             h, w = curr_frame.img_shape.flatten()
-            X = self.frame_X(curr_frame)
-            C = curr_frame.C.cpu().numpy().astype(np.float32)
-            if "curr" not in self.textures:
-                ptex = self.ctx.texture((w, h), 3, dtype="f4", alignment=4)
-                ctex = self.ctx.texture((w, h), 1, dtype="f4", alignment=4)
-                itex = self.ctx.texture((w, h), 3, dtype="f4", alignment=4)
-                self.textures["curr"] = ptex, ctex, itex
-            ptex, ctex, itex = self.textures["curr"]
-            ptex.write(X.tobytes())
-            ctex.write(C.tobytes())
-            itex.write(depth2rgb(X[..., -1], colormap="turbo"))
-            self.render_pointmap(
-                curr_frame.T_WC.cpu(),
-                w,
-                h,
-                ptex,
-                ctex,
-                itex,
-                use_img=True,
-                depth_bias=self.depth_bias,
-            )
+            if h != 0 and w != 0:
+                X = self.frame_X(curr_frame)
+                C = curr_frame.C.cpu().numpy().astype(np.float32)
+                if "curr" not in self.textures:
+                    ptex = self.ctx.texture((w, h), 3, dtype="f4", alignment=4)
+                    ctex = self.ctx.texture((w, h), 1, dtype="f4", alignment=4)
+                    itex = self.ctx.texture((w, h), 3, dtype="f4", alignment=4)
+                    self.textures["curr"] = ptex, ctex, itex
+                ptex, ctex, itex = self.textures["curr"]
+                ptex.write(X.tobytes())
+                ctex.write(C.tobytes())
+                itex.write(depth2rgb(X[..., -1], colormap="turbo"))
+                self.render_pointmap(
+                    curr_frame.T_WC.cpu(),
+                    w,
+                    h,
+                    ptex,
+                    ctex,
+                    itex,
+                    use_img=True,
+                    depth_bias=self.depth_bias,
+                )
 
         self.lines.render(self.camera)
         self.frustums.render(self.camera)
