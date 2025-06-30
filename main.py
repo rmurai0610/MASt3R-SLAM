@@ -148,6 +148,7 @@ if __name__ == "__main__":
     torch.set_grad_enabled(False)
     device = "cuda:0"
     save_frames = False
+    save_depths = True
     datetime_now = str(datetime.datetime.now()).replace(" ", "_")
 
     parser = argparse.ArgumentParser()
@@ -267,6 +268,8 @@ if __name__ == "__main__":
             X_init, C_init = mast3r_inference_mono(model, frame)
             frame.update_pointmap(X_init, C_init)
             keyframes.append(frame)
+            if save_depths:
+                depths.append(X_init)#---------------add depth frame
             states.queue_global_optimization(len(keyframes) - 1)
             states.set_mode(Mode.TRACKING)
             states.set_frame(frame)
@@ -278,10 +281,15 @@ if __name__ == "__main__":
             if try_reloc:
                 states.set_mode(Mode.RELOC)
             states.set_frame(frame)
+            if save_depths:
+                X, _ = mast3r_inference_mono(model, frame)
+                depths.append(X)#---------------add depth frame
 
         elif mode == Mode.RELOC:
             X, C = mast3r_inference_mono(model, frame)
             frame.update_pointmap(X, C)
+            if save_depths:
+                depths.append(X)#---------------add depth frame
             states.set_frame(frame)
             states.queue_reloc()
             # In single threaded mode, make sure relocalization happen for every frame
@@ -322,12 +330,23 @@ if __name__ == "__main__":
             save_dir / "keyframes" / seq_name, dataset.timestamps, keyframes
         )
     if save_frames:
-        savedir = pathlib.Path(f"logs/frames/{datetime_now}")
+        savedir = pathlib.Path(f"logs/frames/{datetime_now}/rgb")
         savedir.mkdir(exist_ok=True, parents=True)
         for i, frame in tqdm.tqdm(enumerate(frames), total=len(frames)):
             frame = (frame * 255).clip(0, 255)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             cv2.imwrite(f"{savedir}/{i}.png", frame)
+    
+    if save_depths:
+        depth_save_dir = pathlib.Path(f"logs/frames/{datetime_now}/depths")
+        depth_save_dir.mkdir(exist_ok=True, parents=True)
+
+        for i, X in tqdm.tqdm(enumerate(depths), total=len(depths)):
+            dP_dz = 1.0
+            inv_depth = X[:, 2:3].cpu().numpy().astype(np.float32)
+            depth = (inv_depth * dP_dz).reshape((h, w))
+            depth_vis = (depth / np.max(depth) * 255).astype(np.uint8)
+            cv2.imwrite(str(depth_save_dir / f"depth_{i:05d}.png"), depth_vis)
 
     print("done")
     backend.join()
