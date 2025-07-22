@@ -47,6 +47,15 @@ else:
     print("CUDA not found, cannot compile backend!")
 
 setup(
+    name="mast3r_slam",
+    version="0.1.0",
+    install_requires=[
+        "opencv-python",
+        "tqdm",
+        "pyyaml",
+        "natsort",
+        "lietor",
+    ],
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension},
 )
