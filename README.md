@@ -21,7 +21,8 @@
 <br>
 
 # Getting Started
-## Docker users
+## Installation
+### Using Docker
 1. build and start the container with:
 ```
 docker compose up -d --build
@@ -30,12 +31,11 @@ docker compose up -d --build
 ```
 docker compose exec mast3r-slam bash
 ```
-
-## Installation
 ```
 conda create -n mast3r-slam python=3.11
 conda activate mast3r-slam
 ```
+### Local install
 Check the system's CUDA version with nvcc
 ```
 nvcc --version
@@ -75,7 +75,7 @@ wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge
 wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric_retrieval_codebook.pkl -P checkpoints/
 ```
 
-## WSL Users
+### WSL Users
 We have primarily tested on Ubuntu.  If you are using WSL, please checkout to the windows branch and follow the above installation.
 ```
 git checkout windows

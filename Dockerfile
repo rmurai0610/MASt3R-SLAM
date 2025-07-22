@@ -5,12 +5,14 @@ FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Tokyo
 
-# Install system packages required for the build (git, wget, ninja, etc.)
+# --- Install all necessary system dependencies, including those for OpenCV ---
 RUN apt-get update && apt-get install -y \
   git \
   wget \
   build-essential \
   ninja-build \
+  libgl1-mesa-glx \
+  libglib2.0-0 \
   && rm -rf /var/lib/apt/lists/*
 
 # Download and install Miniconda
@@ -32,14 +34,14 @@ RUN conda create -n mast3r-slam python=3.11 -y
 # Set the shell to use the 'mast3r-slam' conda environment by default
 SHELL ["conda", "run", "-n", "mast3r-slam", "/bin/bash", "-c"]
 
-# Install the exact PyTorch versions from the README
+# --- Use the exact command from the README to install PyTorch ---
 RUN conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 # Clone the repository
 RUN git clone --recursive https://github.com/rmurai0610/MASt3R-SLAM.git /app
 WORKDIR /app
 
-# Install all remaining dependencies using pip within the conda environment
+# --- FIX: Install OpenCV and other libraries with pip, which will now succeed ---
 RUN pip install \
   numpy==1.26.4 \
   einops \
@@ -48,20 +50,21 @@ RUN pip install \
   natsort \
   plyfile \
   setuptools==70.0.0 \
-  torchcodec==0.1
+  torchcodec==0.1 \
+  opencv-python
 
-# Set environment variables for compiling CUDA extensions
+# Set environment variables for compiling the project's CUDA extensions
 ENV TORCH_CUDA_ARCH_LIST="8.6"
 ENV CUDA_HOME=/usr/local/cuda
 
-# Install the submodules and the main project in editable mode
+# Install the project's submodules
 RUN pip install -e thirdparty/mast3r
 RUN pip install -e thirdparty/in3d
 
-# --- THE FINAL FIX: Patch the main setup.py to force CUDA compilation ---
+# Patch the main setup.py to ensure it finds the CUDA toolkit correctly
 RUN sed -i 's/has_cuda = torch.cuda.is_available()/has_cuda = True/' setup.py
 
-# Finally, install the main project
+# Finally, install the main project itself
 RUN pip install --no-build-isolation -e .
 
 # Set the final entrypoint to launch a bash shell within the conda environment
