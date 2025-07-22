@@ -1,0 +1,18 @@
+services:
+  mast3r-slam:
+    build: .
+    container_name: mast3r-slam-container
+    stdin_open: true # Keep stdin open for the container
+    tty: true # Allocate a pseudo-TTY (required for an interactive shell)
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      # You can also mount a folder for checkpoints if needed
+      # - ./checkpoints:/app/MASt3R-SLAM/checkpoints
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]

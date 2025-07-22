@@ -21,6 +21,16 @@
 <br>
 
 # Getting Started
+## Docker users
+1. build and start the container with:
+```
+docker compose up -d --build
+```
+1. Once the build is complete, enter an interactive bash session inside the container with this command:
+```
+docker compose exec mast3r-slam bash
+```
+
 ## Installation
 ```
 conda create -n mast3r-slam python=3.11

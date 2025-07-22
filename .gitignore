@@ -138,3 +138,7 @@ screen.yaml
 *.pt
 *.ini
 notebooks/*
+
+# others
+data/
+output/
