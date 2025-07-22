@@ -3,6 +3,7 @@ services:
     build: .
     container_name: mast3r-slam-container
     stdin_open: true # Keep stdin open for the container
+    command: tail -f /dev/null
     tty: true # Allocate a pseudo-TTY (required for an interactive shell)
     volumes:
       - ./data:/app/data
