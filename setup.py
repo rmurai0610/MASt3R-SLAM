@@ -46,16 +46,13 @@ if has_cuda:
 else:
     print("CUDA not found, cannot compile backend!")
 
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
+
 setup(
     name="mast3r_slam",
     version="0.1.0",
-    install_requires=[
-        "opencv-python",
-        "tqdm",
-        "pyyaml",
-        "natsort",
-        "lietor",
-    ],
+    install_requires=requirements,
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension},
 )
