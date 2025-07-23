@@ -21,6 +21,19 @@ RUN apt-get update && apt-get install -y \
   libgtk-3-0 \
   libgtk-3-dev \
   libusb-1.0-0 \
+  libglib2.0-0 \
+  libgl1-mesa-glx \
+  libgomp1 \
+  libgstreamer1.0-0 \
+  libgstreamer-plugins-base1.0-0 \
+  libgtk-3-0 \
+  ffmpeg \
+  libavcodec-dev \
+  libavformat-dev \
+  libswscale-dev \
+  libv4l-dev \
+  libxvidcore-dev \
+  libx264-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # Download and install Miniconda
@@ -62,7 +75,8 @@ RUN conda run -n mast3r-slam /bin/bash -c " \
   plyfile \
   setuptools==70.0.0 \
   torchcodec==0.1 \
-  opencv-python && \
+  opencv-python==4.10.0.84 \
+  opencv-contrib-python==4.10.0.84 && \
   pip install -e thirdparty/mast3r && \
   pip install -e thirdparty/in3d && \
   sed -i 's/has_cuda = torch.cuda.is_available()/has_cuda = True/' setup.py && \
@@ -82,6 +96,9 @@ source /opt/conda/etc/profile.d/conda.sh\n\
 conda activate mast3r-slam\n\
 python "$@"' > /usr/local/bin/python-mast3r && \
     chmod +x /usr/local/bin/python-mast3r
+
+# Fix multiprocessing shared memory issue in Docker
+RUN echo 'none /dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=2g 0 0' >> /etc/fstab
 
 # Add conda activation to bashrc
 RUN echo "source /opt/conda/etc/profile.d/conda.sh && conda activate mast3r-slam" >> /root/.bashrc

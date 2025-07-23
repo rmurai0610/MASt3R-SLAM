@@ -5,11 +5,13 @@ services:
     stdin_open: true # Keep stdin open for the container
     command: tail -f /dev/null
     tty: true # Allocate a pseudo-TTY (required for an interactive shell)
+    shm_size: '2gb'  # Increase shared memory size for multiprocessing
     volumes:
       - ./data:/app/data
       - ./output:/app/output
-      # You can also mount a folder for checkpoints if needed
-      # - ./checkpoints:/app/MASt3R-SLAM/checkpoints
+      - ./scripts:/app/scripts
+      - ./checkpoints:/app/checkpoints
+      - ./config:/app/config
     deploy:
       resources:
         reservations:
