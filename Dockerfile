@@ -1,11 +1,11 @@
-# Use NVIDIA CUDA 12.1.1 development environment as the base image
+# Use the stable NVIDIA CUDA image for Ubuntu 22.04
 FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
 
 # Set environment variables to prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Tokyo
 
-# --- Install all necessary system dependencies, including those for OpenCV ---
+# Install all necessary system dependencies, including those for OpenCV
 RUN apt-get update && apt-get install -y \
   git \
   wget \
@@ -31,18 +31,21 @@ RUN conda config --set auto_activate_base false && \
 # Create the conda environment with Python 3.11
 RUN conda create -n mast3r-slam python=3.11 -y
 
-# Set the shell to use the 'mast3r-slam' conda environment by default
-SHELL ["conda", "run", "-n", "mast3r-slam", "/bin/bash", "-c"]
-
-# --- Use the exact command from the README to install PyTorch ---
-RUN conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+# Use the exact command from the README to install PyTorch within the new environment
+RUN conda run -n mast3r-slam conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 # Clone the repository
 RUN git clone --recursive https://github.com/rmurai0610/MASt3R-SLAM.git /app
 WORKDIR /app
 
-# --- FIX: Install OpenCV and other libraries with pip, which will now succeed ---
-RUN pip install \
+# Set environment variables for compiling CUDA extensions
+ENV TORCH_CUDA_ARCH_LIST="8.6"
+ENV CUDA_HOME=/usr/local/cuda
+
+# Run all subsequent commands inside a single RUN layer with the conda environment explicitly activated.
+# This ensures all pip subprocesses correctly inherit the environment and can find PyTorch.
+RUN conda run -n mast3r-slam /bin/bash -c " \
+  pip install \
   numpy==1.26.4 \
   einops \
   pyrealsense2 \
@@ -51,21 +54,12 @@ RUN pip install \
   plyfile \
   setuptools==70.0.0 \
   torchcodec==0.1 \
-  opencv-python
-
-# Set environment variables for compiling the project's CUDA extensions
-ENV TORCH_CUDA_ARCH_LIST="8.6"
-ENV CUDA_HOME=/usr/local/cuda
-
-# Install the project's submodules
-RUN pip install -e thirdparty/mast3r
-RUN pip install -e thirdparty/in3d
-
-# Patch the main setup.py to ensure it finds the CUDA toolkit correctly
-RUN sed -i 's/has_cuda = torch.cuda.is_available()/has_cuda = True/' setup.py
-
-# Finally, install the main project itself
-RUN pip install --no-build-isolation -e .
+  opencv-python && \
+  pip install -e thirdparty/mast3r && \
+  pip install -e thirdparty/in3d && \
+  sed -i 's/has_cuda = torch.cuda.is_available()/has_cuda = True/' setup.py && \
+  pip install --no-build-isolation --no-binary lietorch -e . \
+  "
 
 # Set the final entrypoint to launch a bash shell within the conda environment
 CMD ["conda", "run", "-n", "mast3r-slam", "bash"]
