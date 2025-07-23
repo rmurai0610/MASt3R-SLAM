@@ -1,0 +1,58 @@
+use_calib: False
+single_thread: True  # Use single thread to reduce memory usage
+dataset:
+  subsample: 3  # Process every 3rd frame to reduce memory
+  img_downsample: 2  # Downsample images by factor of 2 (960x540 instead of 1920x1080)
+  center_principle_point: True
+
+matching:
+  max_iter: 10
+  lambda_init: 1e-8
+  convergence_thresh: 1e-6
+  dist_thresh: 1e-1 # distance in 3D space
+  radius: 3
+  dilation_max: 5 # Right now starts from max and iteratively decreases until 1
+
+tracking:
+  min_match_frac: 0.05
+  max_iters: 50
+  C_conf: 0.0
+  Q_conf: 1.5
+  rel_error: 1e-3
+  delta_norm: 1e-3
+  huber: 1.345
+  match_frac_thresh: 0.333
+  sigma_ray: 0.003
+  sigma_dist: 1e+1
+  sigma_pixel: 1.0
+  sigma_depth: 1e+1 # NOTE: log-depth!
+  sigma_point: 0.05
+  pixel_border: -10 # Only in calib (negative means allow pixels outside image up to that distance)
+  depth_eps: 1e-6 # Only in calib case
+  filtering_mode: weighted_pointmap # recent, first, best_score, weighted_pointmap, weighted_spherical, indep_conf
+  filtering_score: median # median, mean (only used for filtering_mode=best_score)
+
+local_opt:
+  pin: 1
+  window_size: 5e+4  # Reduced window size to save memory   
+  C_conf: 0.0
+  Q_conf: 1.5
+  min_match_frac: 0.1
+  pixel_border: -10 # Only in calib (negative means allow pixels outside image up to that distance)
+  depth_eps: 1e-6 # Only in calib case
+  max_iters: 10
+  sigma_ray: 0.003
+  sigma_dist: 1e+1
+  sigma_pixel: 1.0
+  sigma_depth: 1e+1 # NOTE: log-depth!
+  sigma_point: 0.05
+  delta_norm: 1e-8
+  use_cuda: True
+
+retrieval:
+  k: 2  # Reduced from 3 to save memory
+  min_thresh: 5e-3
+
+reloc:
+  min_match_frac: 0.3
+  strict: True
