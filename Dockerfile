@@ -13,6 +13,14 @@ RUN apt-get update && apt-get install -y \
   ninja-build \
   libgl1-mesa-glx \
   libglib2.0-0 \
+  libsm6 \
+  libxext6 \
+  libxrender-dev \
+  libgomp1 \
+  libglib2.0-0 \
+  libgtk-3-0 \
+  libgtk-3-dev \
+  libusb-1.0-0 \
   && rm -rf /var/lib/apt/lists/*
 
 # Download and install Miniconda
@@ -61,5 +69,23 @@ RUN conda run -n mast3r-slam /bin/bash -c " \
   pip install --no-build-isolation --no-binary lietorch -e . \
   "
 
+# Create a shell script that activates conda environment
+RUN echo '#!/bin/bash\n\
+source /opt/conda/etc/profile.d/conda.sh\n\
+conda activate mast3r-slam\n\
+exec "$@"' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+# Also create a wrapper for python to always use the conda env
+RUN echo '#!/bin/bash\n\
+source /opt/conda/etc/profile.d/conda.sh\n\
+conda activate mast3r-slam\n\
+python "$@"' > /usr/local/bin/python-mast3r && \
+    chmod +x /usr/local/bin/python-mast3r
+
+# Add conda activation to bashrc
+RUN echo "source /opt/conda/etc/profile.d/conda.sh && conda activate mast3r-slam" >> /root/.bashrc
+
 # Set the final entrypoint to launch a bash shell within the conda environment
-CMD ["conda", "run", "-n", "mast3r-slam", "bash"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]
