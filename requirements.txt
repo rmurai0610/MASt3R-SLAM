@@ -1,8 +1,0 @@
-opencv-python
-tqdm
-pyyaml
-natsort
-lietor
-pyrealsense2
-torchcodec==0.1 # Optional, for faster mp4 loading
-
