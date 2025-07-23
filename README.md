@@ -21,21 +21,66 @@
 <br>
 
 # Getting Started
-## Installation
-### Using Docker
-1. build and start the container with:
-```
+
+## Quick Start with Docker (Recommended)
+
+The easiest way to run MASt3R-SLAM is using Docker. This approach handles all dependencies automatically and produces results you can visualize immediately.
+
+### 1. Build and Start Container
+```bash
 docker compose up -d --build
 ```
-1. Once the build is complete, enter an interactive bash session inside the container with this command:
+
+### 2. Run SLAM on Your Video
+Place your video file in the `data/` directory and run:
+```bash
+# Use default (expects data/yourvideo.mp4)
+bash ./scripts/run_docker.sh
+
+# Or specify your video file
+bash ./scripts/run_docker.sh data/myvideo.mov
+
+# For low-memory systems (useful for large videos or limited GPU memory)
+bash ./scripts/run_docker_low_memory.sh data/myvideo.mov
 ```
+
+**Alternative**: Edit the script directly to change the default dataset path:
+```bash
+# Edit line 6 in scripts/run_docker.sh
+DATASET=${1:-"data/your_actual_video.mp4"}
+```
+
+**Script Options:**
+- `run_docker.sh` - Standard processing (recommended)
+- `run_docker_low_memory.sh` - Optimized for systems with limited GPU memory (uses frame/image subsampling)
+
+This will:
+- Process your video using MASt3R-SLAM
+- Save results to `./output/` directory:
+  - `{video_name}.txt` - Camera trajectory (TUM format)
+  - `{video_name}.ply` - 3D point cloud
+  - `keyframes/` - Keyframe images with timestamps
+
+### 3. Visualize Results
+- **3D Point Cloud**: Open the `.ply` file in [CloudCompare](https://www.cloudcompare.org/) or [MeshLab](https://www.meshlab.net/)
+- **Camera Trajectory**: Plot the `.txt` file using [evo toolkit](https://github.com/MichaelGrupp/evo):
+  ```bash
+  pip install evo
+  evo_traj tum output/{video_name}.txt --plot --plot_mode xy
+  ```
+- **Keyframes**: View PNG images in `output/keyframes/{video_name}/`
+
+### 4. Interactive Development (Optional)
+For development or custom configurations, enter the container:
+```bash
 docker compose exec mast3r-slam bash
-```
-```
-conda create -n mast3r-slam python=3.11
 conda activate mast3r-slam
+python main.py --dataset data/your_video.mp4 --config config/base.yaml
 ```
-### Local install
+
+## Alternative: Local Installation
+
+For users who prefer local installation or need custom modifications:
 Check the system's CUDA version with nvcc
 ```
 nvcc --version
@@ -82,27 +127,142 @@ git checkout windows
 ```
 This disables multiprocessing which causes an issue with shared memory as discussed [here](https://github.com/rmurai0610/MASt3R-SLAM/issues/21).
 
-## Examples
-```
+## Advanced Usage
+
+### Running with Dataset Examples
+For standard datasets like TUM-RGBD:
+```bash
+# Download dataset
 bash ./scripts/download_tum.sh
+
+# Docker approach
+docker compose exec mast3r-slam bash -c "conda activate mast3r-slam && python main.py --dataset datasets/tum/rgbd_dataset_freiburg1_room/ --config config/calib.yaml"
+
+# Local installation
 python main.py --dataset datasets/tum/rgbd_dataset_freiburg1_room/ --config config/calib.yaml
 ```
-## Live Demo
-Connect a realsense camera to the PC and run
-```
+
+### Live Demo with Realsense Camera
+```bash
+# Docker approach
+docker compose exec mast3r-slam bash -c "conda activate mast3r-slam && python main.py --dataset realsense --config config/base.yaml"
+
+# Local installation
 python main.py --dataset realsense --config config/base.yaml
 ```
-## Running on a video
-Our system can process either MP4 videos or folders containing RGB images.
+
+### Custom Video/Image Processing
+Our system can process MP4 videos or folders containing RGB images:
+
+**Using Docker (saves results automatically):**
+```bash
+# Method 1: Use convenient script with argument
+bash ./scripts/run_docker.sh data/your_video.mp4
+
+# Method 2: Use low-memory version for large videos
+bash ./scripts/run_docker_low_memory.sh data/your_video.mp4
+
+# Method 3: Manual container execution
+docker compose exec mast3r-slam bash -c "conda activate mast3r-slam && python main.py --dataset data/your_video.mp4 --config config/base.yaml --save-as output"
 ```
+
+**Using Local Installation:**
+```bash
 python main.py --dataset <path/to/video>.mp4 --config config/base.yaml
 python main.py --dataset <path/to/folder> --config config/base.yaml
 ```
-If the calibration parameters are known, you can specify them in intrinsics.yaml
-```
+
+**With Known Camera Calibration:**
+If you have calibration parameters, specify them in `config/intrinsics.yaml`:
+```bash
 python main.py --dataset <path/to/video>.mp4 --config config/base.yaml --calib config/intrinsics.yaml
-python main.py --dataset <path/to/folder> --config config/base.yaml --calib config/intrinsics.yaml
 ```
+
+## Result Visualization
+
+MASt3R-SLAM produces three main outputs that can be visualized:
+
+### 1. 3D Point Cloud (`.ply` file)
+The reconstructed 3D scene with colored points from all keyframes.
+
+**Recommended viewers:**
+- **[CloudCompare](https://www.cloudcompare.org/)** (Free, cross-platform)
+  ```bash
+  # Ubuntu/Debian
+  sudo apt install cloudcompare
+  # Then open: cloudcompare output/your_video.ply
+  ```
+- **[MeshLab](https://www.meshlab.net/)** (Free, cross-platform)
+- **[Open3D](http://www.open3d.org/)** (Python library)
+  ```python
+  import open3d as o3d
+  pcd = o3d.io.read_point_cloud("output/your_video.ply")
+  o3d.visualization.draw_geometries([pcd])
+  ```
+
+### 2. Camera Trajectory (`.txt` file)
+Camera poses in TUM RGBD format: `timestamp x y z qx qy qz qw`
+
+**Visualization with evo toolkit:**
+```bash
+pip install evo
+# 2D trajectory plot
+evo_traj tum output/your_video.txt --plot --plot_mode xy
+# 3D trajectory plot
+evo_traj tum output/your_video.txt --plot --plot_mode xyz
+# Save plot as image
+evo_traj tum output/your_video.txt --plot --plot_mode xy --save_plot output/trajectory.png
+```
+
+**Custom Python visualization:**
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load trajectory
+data = np.loadtxt('output/your_video.txt')
+timestamps, positions = data[:, 0], data[:, 1:4]
+
+# Plot 2D trajectory (top-down view)
+plt.figure(figsize=(10, 8))
+plt.plot(positions[:, 0], positions[:, 1], 'b-', linewidth=2)
+plt.scatter(positions[0, 0], positions[0, 1], color='green', s=100, label='Start')
+plt.scatter(positions[-1, 0], positions[-1, 1], color='red', s=100, label='End')
+plt.xlabel('X (meters)')
+plt.ylabel('Y (meters)')
+plt.title('Camera Trajectory (Top View)')
+plt.legend()
+plt.axis('equal')
+plt.grid(True)
+plt.show()
+```
+
+### 3. Keyframe Images
+Selected keyframes with timestamps, saved as PNG files in `keyframes/{video_name}/`.
+
+These can be viewed with any image viewer or used for further analysis:
+```bash
+# View keyframes with timestamps
+ls -la output/keyframes/your_video/
+# Example: 0.0.png, 10.2204.png, 20.4408.png...
+```
+
+### Real-time Visualization
+For live visualization during processing, run without `--no-viz` flag:
+```bash
+# Docker
+docker compose exec mast3r-slam bash -c "conda activate mast3r-slam && python main.py --dataset data/your_video.mp4 --config config/base.yaml"
+
+# Local
+python main.py --dataset your_video.mp4 --config config/base.yaml
+```
+
+This opens an interactive 3D viewer showing:
+- Real-time point cloud reconstruction
+- Camera trajectory with frustums
+- Keyframe connections
+- Adjustable confidence thresholds
+- Multiple rendering modes (surfel/triangle)
 
 ## Downloading Dataset
 ### TUM-RGBD Dataset
