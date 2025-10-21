@@ -98,7 +98,7 @@ void rope_2d_cuda( torch::Tensor tokens, const torch::Tensor pos, const float ba
     const int N_BLOCKS = B * N; // each block takes care of H*D values
     const int SHARED_MEM = sizeof(float) * (D + D/4);
 
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.type(), "rope_2d_cuda", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.scalar_type(), "rope_2d_cuda", ([&] {
         rope_2d_cuda_kernel<scalar_t> <<<N_BLOCKS, THREADS_PER_BLOCK, SHARED_MEM>>> (
             //tokens.data_ptr<scalar_t>(), 
             tokens.packed_accessor32<scalar_t,4,torch::RestrictPtrTraits>(),
