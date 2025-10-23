@@ -25,23 +25,16 @@ if has_cuda:
     from torch.utils.cpp_extension import CUDAExtension
     from torch import cuda as _cuda
 
+    # Determine local GPU compute capability and build only for it
+    cc_major, cc_minor = _cuda.get_device_capability(0)
+    cc = f"{cc_major}{cc_minor}"
+
     sources.append("mast3r_slam/backend/src/gn_kernels.cu")
     sources.append("mast3r_slam/backend/src/matching_kernels.cu")
 
-    # Explicit, standardized arch flags (avoid tokenization issues)
     arch_flags = [
-        "-gencode=arch=compute_60,code=sm_60",
-        "-gencode=arch=compute_61,code=sm_61",
-        "-gencode=arch=compute_70,code=sm_70",
-        "-gencode=arch=compute_75,code=sm_75",
-        "-gencode=arch=compute_80,code=sm_80",
-        "-gencode=arch=compute_86,code=sm_86",
-        "-gencode=arch=compute_89,code=sm_89",
-        "-gencode=arch=compute_90,code=sm_90",
-        # Blackwell
-        "-gencode=arch=compute_120,code=sm_120",
-        # PTX for JIT fallback
-        "-gencode=arch=compute_120,code=compute_120",
+        f"-gencode=arch=compute_{cc},code=sm_{cc}",
+        f"-gencode=arch=compute_{cc},code=compute_{cc}",
     ]
 
     extra_compile_args["nvcc"] = [

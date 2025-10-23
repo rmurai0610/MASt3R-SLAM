@@ -1,7 +1,7 @@
 use_calib: False
 single_thread: False
 dataset:
-  subsample: 1
+  subsample: 10
   img_downsample: 1
   center_principle_point: True
 

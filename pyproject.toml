@@ -8,7 +8,6 @@ version = "0.0.1"
 dependencies = [
     "numpy==1.26.4",
     "einops",
-    "pyrealsense2",
     "evo",
     "natsort",
     # "torchcodec==0.1",
