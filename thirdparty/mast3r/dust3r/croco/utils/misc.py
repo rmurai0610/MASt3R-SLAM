@@ -311,9 +311,9 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
     if args.resume is not None:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location='cpu', check_hash=True)
+                args.resume, map_location='cpu', check_hash=True, weights_only=False)
         else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
+            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
         print("Resume checkpoint %s" % args.resume)
         model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
         args.start_epoch = checkpoint['epoch'] + 1

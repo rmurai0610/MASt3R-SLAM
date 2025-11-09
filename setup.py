@@ -24,6 +24,9 @@ extra_compile_args = {
 if has_cuda:
     from torch.utils.cpp_extension import CUDAExtension
 
+    cuda_version = torch.version.cuda
+    cuda_major, cuda_minor = map(int, cuda_version.split(".")[:2])
+
     sources.append("mast3r_slam/backend/src/gn_kernels.cu")
     sources.append("mast3r_slam/backend/src/matching_kernels.cu")
     extra_compile_args["nvcc"] = [
@@ -35,6 +38,13 @@ if has_cuda:
         "-gencode=arch=compute_80,code=sm_80",
         "-gencode=arch=compute_86,code=sm_86",
     ]
+
+    if (cuda_major, cuda_minor) >= (11, 8):
+        extra_compile_args["nvcc"].append("-gencode=arch=compute_90,code=sm_90")
+
+    if (cuda_major, cuda_minor) >= (12, 8):
+        extra_compile_args["nvcc"].append("-gencode=arch=compute_120,code=sm_120")
+
     ext_modules = [
         CUDAExtension(
             "mast3r_slam_backends",
