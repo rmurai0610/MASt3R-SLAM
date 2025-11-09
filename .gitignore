@@ -138,3 +138,5 @@ screen.yaml
 *.pt
 *.ini
 notebooks/*
+
+.vscode/

@@ -295,26 +295,94 @@ class Intrinsics:
     def remap(self, img):
         return cv2.remap(img, self.mapx, self.mapy, cv2.INTER_LINEAR)
 
+
     @staticmethod
-    def from_calib(img_size, W, H, calib, always_undistort=False):
+    def from_calib(img_size, W, H, calib, always_undistort=False, model_type="pinhole"):
+        """Creates camera intrinsics from calibration parameters.
+
+        Args:
+            img_size: Target image size for resizing
+            W: Original image width
+            H: Original image height
+            calib: Camera calibration parameters, either as array or dictionary
+            always_undistort: If True, creates undistortion maps even when use_calib=False
+            model_type: Camera model type, either "pinhole" or "mei"/"omnidir"
+
+        Returns:
+            Intrinsics object with camera parameters and undistortion maps, or None if
+            use_calib=False and always_undistort=False
+
+        The function handles two camera models:
+        1. MEI/Omnidirectional model with parameters:
+           - As dict: projection (gamma1,gamma2,u0,v0), mirror (xi), distortion (k1,k2,p1,p2)
+           - As array: [gamma1,gamma2,u0,v0,xi,k1,k2,p1,p2]
+        2. Pinhole model with parameters:
+           - As array: [fx,fy,cx,cy] or [fx,fy,cx,cy,k1,k2,p1,p2]
+        """
         if not config["use_calib"] and not always_undistort:
             return None
-        fx, fy, cx, cy = calib[:4]
-        distortion = np.zeros(4)
-        if len(calib) > 4:
-            distortion = np.array(calib[4:])
-        K = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]])
-        K_opt = K.copy()
-        mapx, mapy = None, None
-        center = config["dataset"]["center_principle_point"]
-        K_opt, _ = cv2.getOptimalNewCameraMatrix(
-            K, distortion, (W, H), 0, (W, H), centerPrincipalPoint=center
-        )
-        mapx, mapy = cv2.initUndistortRectifyMap(
-            K, distortion, None, K_opt, (W, H), cv2.CV_32FC1
-        )
 
-        return Intrinsics(img_size, W, H, K, K_opt, distortion, mapx, mapy)
+        # Process based on camera model type
+        if (
+            model_type.lower() == "mei"
+            or model_type.lower() == "omnidir"
+            or len(calib) == 9
+        ):
+            # For MEI model, extract parameters
+            if isinstance(calib, dict):
+                # Dictionary format
+                xi = calib.get("mirror_parameters", {}).get("xi", 0.0)
+                k1 = calib.get("distortion_parameters", {}).get("k1", 0.0)
+                k2 = calib.get("distortion_parameters", {}).get("k2", 0.0)
+                p1 = calib.get("distortion_parameters", {}).get("p1", 0.0)
+                p2 = calib.get("distortion_parameters", {}).get("p2", 0.0)
+                gamma1 = calib.get("projection_parameters", {}).get("gamma1", 0.0)
+                gamma2 = calib.get("projection_parameters", {}).get("gamma2", 0.0)
+                u0 = calib.get("projection_parameters", {}).get("u0", 0.0)
+                v0 = calib.get("projection_parameters", {}).get("v0", 0.0)
+            else:
+                # Array/list format: [gamma1, gamma2, u0, v0, xi, k1, k2, p1, p2]
+                gamma1, gamma2, u0, v0, xi = calib[:5]
+                distortion = np.zeros(4)
+                if len(calib) > 5:
+                    distortion = np.array(calib[5:9])  # Get up to 4 distortion coefficients
+                k1, k2, p1, p2 = (
+                    distortion if len(distortion) == 4 else [0.0, 0.0, 0.0, 0.0]
+                )
+
+            # Create camera matrix and distortion coefficients for MEI model
+            K = np.array([[gamma1, 0.0, u0], [0.0, gamma2, v0], [0.0, 0.0, 1.0]])
+            D = np.array([k1, k2, p1, p2])
+
+            # Select the rectification mode
+            # Options: cv2.omnidir.RECTIFY_PERSPECTIVE, cv2.omnidir.RECTIFY_CYLINDRICAL, cv2.omnidir.RECTIFY_STEREOGRAPHIC
+            flags = cv2.omnidir.RECTIFY_PERSPECTIVE  # For perspective view (default)
+
+            # Create undistortion maps using omnidir module
+            K_new = K.copy()
+            mapx, mapy = cv2.omnidir.initUndistortRectifyMap(
+                K, D, np.array([xi]), np.eye(3), K_new, (W, H), cv2.CV_32FC1, flags
+            )
+
+            return Intrinsics(img_size, W, H, K, K_new, D, mapx, mapy)
+        else:
+            # Original pinhole camera model code
+            fx, fy, cx, cy = calib[:4]
+            distortion = np.zeros(4)
+            if len(calib) > 4:
+                distortion = np.array(calib[4:])
+            K = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]])
+            K_opt = K.copy()
+            mapx, mapy = None, None
+            center = config["dataset"]["center_principle_point"]
+            K_opt, _ = cv2.getOptimalNewCameraMatrix(
+                K, distortion, (W, H), 0, (W, H), centerPrincipalPoint=center
+            )
+            mapx, mapy = cv2.initUndistortRectifyMap(
+                K, distortion, None, K_opt, (W, H), cv2.CV_32FC1
+            )
+
+            return Intrinsics(img_size, W, H, K, K_opt, distortion, mapx, mapy)
 
 
 def load_dataset(dataset_path):
