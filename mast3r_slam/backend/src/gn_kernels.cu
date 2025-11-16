@@ -33,6 +33,10 @@ typedef std::vector<torch::Tensor> tensor_list_t;
 
 #define EPS 1e-6
 
+#if (TORCH_VERSION_MAJOR == 2 && TORCH_VERSION_MINOR < 5)
+  #define USE_OLD_LINALG_NORM_API
+#endif
+
 __device__ void warpReduce(volatile float *sdata, unsigned int tid) {
   sdata[tid] += sdata[tid + 32];
   sdata[tid] += sdata[tid + 16];
@@ -799,7 +803,11 @@ std::vector<torch::Tensor> gauss_newton_points_cuda(
 
     // Termination criteria
     // Need to specify this second argument otherwise ambiguous function call...
-    delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    #ifdef USE_OLD_LINALG_NORM_API
+      delta_norm = torch::linalg::linalg_norm(dx, c10::optional<c10::Scalar>(), {}, false, {});
+    #else
+      delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    #endif
     if (delta_norm.item<float>() < delta_thresh) {
       break;
     }
@@ -1216,7 +1224,11 @@ std::vector<torch::Tensor> gauss_newton_rays_cuda(
 
     // Termination criteria
     // Need to specify this second argument otherwise ambiguous function call...
-    delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    #ifdef USE_OLD_LINALG_NORM_API
+      delta_norm = torch::linalg::linalg_norm(dx, c10::optional<c10::Scalar>(), {}, false, {});
+    #else
+      delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    #endif
     if (delta_norm.item<float>() < delta_thresh) {
       break;
     }
@@ -1626,7 +1638,11 @@ std::vector<torch::Tensor> gauss_newton_calib_cuda(
 
     // Termination criteria
     // Need to specify this second argument otherwise ambiguous function call...
-    delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    #ifdef USE_OLD_LINALG_NORM_API
+      delta_norm = torch::linalg::linalg_norm(dx, c10::optional<c10::Scalar>(), {}, false, {});
+    #else
+      delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    #endif
     if (delta_norm.item<float>() < delta_thresh) {
       break;
     }
