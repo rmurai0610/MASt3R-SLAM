@@ -23,18 +23,27 @@ extra_compile_args = {
 
 if has_cuda:
     from torch.utils.cpp_extension import CUDAExtension
+    from torch import cuda as _cuda
+
+    # Determine local GPU compute capability and build only for it
+    cc_major, cc_minor = _cuda.get_device_capability(0)
+    cc = f"{cc_major}{cc_minor}"
 
     sources.append("mast3r_slam/backend/src/gn_kernels.cu")
     sources.append("mast3r_slam/backend/src/matching_kernels.cu")
+
+    arch_flags = [
+        f"-gencode=arch=compute_{cc},code=sm_{cc}",
+        f"-gencode=arch=compute_{cc},code=compute_{cc}",
+    ]
+
     extra_compile_args["nvcc"] = [
         "-O3",
-        "-gencode=arch=compute_60,code=sm_60",
-        "-gencode=arch=compute_61,code=sm_61",
-        "-gencode=arch=compute_70,code=sm_70",
-        "-gencode=arch=compute_75,code=sm_75",
-        "-gencode=arch=compute_80,code=sm_80",
-        "-gencode=arch=compute_86,code=sm_86",
+        "--use_fast_math",
+        "--ptxas-options=-v",
+        *arch_flags,
     ]
+
     ext_modules = [
         CUDAExtension(
             "mast3r_slam_backends",

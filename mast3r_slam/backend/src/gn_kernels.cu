@@ -798,8 +798,8 @@ std::vector<torch::Tensor> gauss_newton_points_cuda(
       num_fix);
 
     // Termination criteria
-    // Need to specify this second argument otherwise ambiguous function call...
-    delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    // Compute L2 norm of update
+    delta_norm = dx.pow(2).sum().sqrt();
     if (delta_norm.item<float>() < delta_thresh) {
       break;
     }
@@ -1215,8 +1215,8 @@ std::vector<torch::Tensor> gauss_newton_rays_cuda(
       num_fix);
 
     // Termination criteria
-    // Need to specify this second argument otherwise ambiguous function call...
-    delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    // Compute L2 norm of update
+    delta_norm = dx.pow(2).sum().sqrt();
     if (delta_norm.item<float>() < delta_thresh) {
       break;
     }
@@ -1625,8 +1625,8 @@ std::vector<torch::Tensor> gauss_newton_calib_cuda(
       num_fix);
 
     // Termination criteria
-    // Need to specify this second argument otherwise ambiguous function call...
-    delta_norm = torch::linalg::linalg_norm(dx, std::optional<c10::Scalar>(), {}, false, {});
+    // Compute L2 norm of update
+    delta_norm = dx.pow(2).sum().sqrt();
     if (delta_norm.item<float>() < delta_thresh) {
       break;
     }
