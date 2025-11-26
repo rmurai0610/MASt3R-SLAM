@@ -52,8 +52,9 @@ RUN conda config --set auto_activate_base false && \
 # Create the conda environment with Python 3.11
 RUN conda create -n mast3r-slam python=3.11 -y
 
-# Use the exact command from the README to install PyTorch within the new environment
-RUN conda run -n mast3r-slam conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+# Install PyTorch via pip (more reliable than conda in Docker due to fewer library dependencies)
+# This avoids the Intel VTune library linking issues that occur with conda pytorch
+RUN conda run -n mast3r-slam pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 # Clone the repository
 RUN git clone --recursive https://github.com/rmurai0610/MASt3R-SLAM.git /app
@@ -65,7 +66,10 @@ ENV CUDA_HOME=/usr/local/cuda
 
 # Run all subsequent commands inside a single RUN layer with the conda environment explicitly activated.
 # This ensures all pip subprocesses correctly inherit the environment and can find PyTorch.
-RUN conda run -n mast3r-slam /bin/bash -c " \
+# Using SHELL to set bash with conda init, so all RUN commands use the activated environment.
+SHELL ["/bin/bash", "-c"]
+RUN source /opt/conda/etc/profile.d/conda.sh && \
+  conda activate mast3r-slam && \
   pip install \
   numpy==1.26.4 \
   einops \
@@ -77,11 +81,10 @@ RUN conda run -n mast3r-slam /bin/bash -c " \
   torchcodec==0.1 \
   opencv-python==4.10.0.84 \
   opencv-contrib-python==4.10.0.84 && \
-  pip install -e thirdparty/mast3r && \
+  pip install --no-build-isolation -e thirdparty/mast3r && \
   pip install -e thirdparty/in3d && \
   sed -i 's/has_cuda = torch.cuda.is_available()/has_cuda = True/' setup.py && \
-  pip install --no-build-isolation --no-binary lietorch -e . \
-  "
+  pip install --no-build-isolation --no-binary lietorch -e .
 
 # Create a shell script that activates conda environment
 RUN echo '#!/bin/bash\n\
