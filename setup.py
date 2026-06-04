@@ -26,15 +26,21 @@ if has_cuda:
 
     sources.append("mast3r_slam/backend/src/gn_kernels.cu")
     sources.append("mast3r_slam/backend/src/matching_kernels.cu")
-    extra_compile_args["nvcc"] = [
-        "-O3",
-        "-gencode=arch=compute_60,code=sm_60",
-        "-gencode=arch=compute_61,code=sm_61",
-        "-gencode=arch=compute_70,code=sm_70",
-        "-gencode=arch=compute_75,code=sm_75",
-        "-gencode=arch=compute_80,code=sm_80",
-        "-gencode=arch=compute_86,code=sm_86",
-    ]
+    if torch.version.hip is not None:
+        # ROCm: BuildExtension hipifies the .cu sources and injects the
+        # target arch via --offload-arch (PYTORCH_ROCM_ARCH); the nvcc
+        # -gencode flags are CUDA-only and rejected by hipcc.
+        extra_compile_args["nvcc"] = ["-O3"]
+    else:
+        extra_compile_args["nvcc"] = [
+            "-O3",
+            "-gencode=arch=compute_60,code=sm_60",
+            "-gencode=arch=compute_61,code=sm_61",
+            "-gencode=arch=compute_70,code=sm_70",
+            "-gencode=arch=compute_75,code=sm_75",
+            "-gencode=arch=compute_80,code=sm_80",
+            "-gencode=arch=compute_86,code=sm_86",
+        ]
     ext_modules = [
         CUDAExtension(
             "mast3r_slam_backends",

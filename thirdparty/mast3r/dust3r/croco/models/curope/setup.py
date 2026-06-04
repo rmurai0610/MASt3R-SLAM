@@ -1,19 +1,28 @@
 # Copyright (C) 2022-present Naver Corporation. All rights reserved.
 # Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
 
+import torch
 from setuptools import setup
 from torch import cuda
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-# compile for all possible CUDA architectures
-all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
-# alternatively, you can list cuda archs that you want, eg:
-# all_cuda_archs = [
-    # '-gencode', 'arch=compute_70,code=sm_70',
-    # '-gencode', 'arch=compute_75,code=sm_75',
-    # '-gencode', 'arch=compute_80,code=sm_80',
-    # '-gencode', 'arch=compute_86,code=sm_86'
-# ]
+if torch.version.hip is not None:
+    # ROCm: BuildExtension hipifies kernels.cu and injects the target arch
+    # via --offload-arch (PYTORCH_ROCM_ARCH). The nvcc -gencode flags,
+    # --ptxas-options and --use_fast_math are CUDA-only; hipcc enables fast
+    # math / FMA contraction by default, so -O3 suffices.
+    nvcc_args = ['-O3']
+else:
+    # compile for all possible CUDA architectures
+    all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
+    # alternatively, you can list cuda archs that you want, eg:
+    # all_cuda_archs = [
+        # '-gencode', 'arch=compute_70,code=sm_70',
+        # '-gencode', 'arch=compute_75,code=sm_75',
+        # '-gencode', 'arch=compute_80,code=sm_80',
+        # '-gencode', 'arch=compute_86,code=sm_86'
+    # ]
+    nvcc_args = ['-O3','--ptxas-options=-v',"--use_fast_math"]+all_cuda_archs
 
 setup(
     name = 'curope',
@@ -25,7 +34,7 @@ setup(
                     "kernels.cu",
                 ],
                 extra_compile_args = dict(
-                    nvcc=['-O3','--ptxas-options=-v',"--use_fast_math"]+all_cuda_archs, 
+                    nvcc=nvcc_args,
                     cxx=['-O3'])
                 )
     ],

@@ -10,7 +10,7 @@
 #include <ATen/NativeFunctions.h>
 #include <ATen/Parallel.h>
 
-#include <cuda/std/limits>
+#include <limits>
 
 #define BLOCK 16
 
@@ -44,7 +44,7 @@ __global__ void refine_matches_kernel(
   long u0 = p1[b][n][0];
   long v0 = p1[b][n][1];
 
-  scalar_t max_score = ::cuda::std::numeric_limits<scalar_t>::min();
+  scalar_t max_score = std::numeric_limits<scalar_t>::min();
   long u_new = u0;
   long v_new = v0;
 
@@ -100,7 +100,7 @@ std::vector<torch::Tensor> refine_matches_cuda(
   torch::Tensor p1_new = torch::zeros(
     {batch_size, n, 2}, opts);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(D11.type(), "refine_matches_kernel", ([&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(D11.scalar_type(), "refine_matches_kernel", ([&] {
     refine_matches_kernel<scalar_t><<<blocks, threads>>>(
       D11.packed_accessor32<scalar_t,4,torch::RestrictPtrTraits>(),
       D21.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
