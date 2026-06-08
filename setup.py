@@ -1,5 +1,6 @@
 from pathlib import Path
 from setuptools import setup
+import sys
 
 import torch
 from torch.utils.cpp_extension import BuildExtension, CppExtension
@@ -20,6 +21,26 @@ extra_compile_args = {
     "cores": ["j8"],
     "cxx": ["-O3"],
 }
+
+extra_link_args = []
+if sys.platform == "win32":
+    # c10.dll does not export c10::ValueError(SourceLocation, string) -- the
+    # constructor is inherited via "using Error::Error" and MSVC does not
+    # re-export inherited constructors for __declspec(dllexport) classes.
+    # Headers pulled in by <torch/extension.h> trigger TORCH_CHECK which
+    # generates a __declspec(dllimport) reference to that constructor, causing
+    # LNK2001.  Redirect the missing thunk to Error(SourceLocation, string)
+    # which IS exported from c10.dll.  ValueError IS-A Error with no extra
+    # data members; the constructors are semantically identical.
+    _val_imp = (
+        "__imp_??0ValueError@c10@@QEAA@USourceLocation@1@"
+        "V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z"
+    )
+    _err_imp = (
+        "__imp_??0Error@c10@@QEAA@USourceLocation@1@"
+        "V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z"
+    )
+    extra_link_args.append(f"/ALTERNATENAME:{_val_imp}={_err_imp}")
 
 if has_cuda:
     from torch.utils.cpp_extension import CUDAExtension
@@ -47,6 +68,7 @@ if has_cuda:
             include_dirs=include_dirs,
             sources=sources,
             extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
         )
     ]
 else:
