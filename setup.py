@@ -34,6 +34,15 @@ if has_cuda:
         "-gencode=arch=compute_75,code=sm_75",
         "-gencode=arch=compute_80,code=sm_80",
         "-gencode=arch=compute_86,code=sm_86",
+        "-gencode=arch=compute_89,code=sm_89",
+        "-gencode=arch=compute_90,code=sm_90",
+        # RTX 5090 / Blackwell -- missing from the original list, which would
+        # otherwise compile fine here but fail at runtime with "no kernel
+        # image is available for execution on the device" on this GPU.
+        "-gencode=arch=compute_120,code=sm_120",
+        # PTX fallback on the newest arch, for forward compatibility with
+        # architectures newer than any of the above.
+        "-gencode=arch=compute_120,code=compute_120",
     ]
     ext_modules = [
         CUDAExtension(

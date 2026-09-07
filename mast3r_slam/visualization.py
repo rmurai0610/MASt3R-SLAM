@@ -2,7 +2,10 @@ import dataclasses
 import weakref
 from pathlib import Path
 
-import imgui
+try:
+    import imgui
+except:
+    pass
 import lietorch
 import torch
 import moderngl

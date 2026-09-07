@@ -1,10 +1,28 @@
 import argparse
 import datetime
+import os
 import pathlib
 import sys
 import time
+
+if sys.platform == "win32":
+    # mast3r_slam_backends.pyd links against the CUDA Toolkit's cudart DLL by
+    # its system install path (CUDA\vX.Y\bin), which torch's own DLL-directory
+    # registration (torch/lib only) does not cover -- without this, import
+    # fails with "ImportError: DLL load failed ... could not be found" even
+    # though every dependency DLL genuinely exists on disk.
+    _cuda_bin = os.environ.get(
+        "CUDA_PATH", r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8"
+    )
+    _cuda_bin = os.path.join(_cuda_bin, "bin")
+    if os.path.isdir(_cuda_bin):
+        os.add_dll_directory(_cuda_bin)
+
 import cv2
-import lietorch
+try:
+    import lietorch
+except:
+    pass
 import torch
 import tqdm
 import yaml
