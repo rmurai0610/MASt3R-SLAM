@@ -43,7 +43,11 @@ def constrain_points_to_ray(img_size, Xs, K):
 
 
 def act_Sim3(X: lietorch.Sim3, pC: torch.Tensor, jacobian=False):
-    pW = X.act(pC)
+    # lietorch's CUDA kernels crash on this GPU (RTX 5090/Blackwell, see
+    # SharedStates note in frame.py) -- do act() on CPU, then restore pC's
+    # original device so downstream jacobian/solver code (GPU) is unaffected.
+    orig_device = pC.device
+    pW = X.cpu().act(pC.cpu()).to(orig_device)
     if not jacobian:
         return pW
     dpC_dt = torch.eye(3, device=pW.device).repeat(*pW.shape[:-1], 1, 1)

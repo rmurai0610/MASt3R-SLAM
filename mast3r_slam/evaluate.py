@@ -56,7 +56,14 @@ def save_reconstruction(savedir, filename, keyframes, c_conf_threshold):
                 keyframe.img_shape.flatten()[:2], keyframe.X_canon[None], keyframe.K
             )
             keyframe.X_canon = X_canon.squeeze(0)
-        pW = keyframe.T_WC.act(keyframe.X_canon).cpu().numpy().reshape(-1, 3)
+        # lietorch's CUDA kernels crash on this GPU (see frame.py's
+        # SharedStates note) -- do act() on CPU explicitly.
+        pW = (
+            keyframe.T_WC.cpu()
+            .act(keyframe.X_canon.cpu())
+            .numpy()
+            .reshape(-1, 3)
+        )
         color = (keyframe.uimg.cpu().numpy() * 255).astype(np.uint8).reshape(-1, 3)
         valid = (
             keyframe.get_average_conf().cpu().numpy().astype(np.float32).reshape(-1)

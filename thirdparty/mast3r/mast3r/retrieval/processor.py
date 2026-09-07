@@ -67,7 +67,10 @@ class Retriever(object):
         # load the model
         assert os.path.isfile(modelname), modelname
         print(f'Loading retrieval model from {modelname}')
-        ckpt = torch.load(modelname, 'cpu')  # TODO from pretrained to download it automatically
+        # weights_only=False: this checkpoint's 'args' entry is a pickled
+        # argparse.Namespace, rejected by torch>=2.6's new default. Safe
+        # here since modelname is the official retrieval checkpoint.
+        ckpt = torch.load(modelname, 'cpu', weights_only=False)  # TODO from pretrained to download it automatically
         ckpt_args = ckpt['args']
         if backbone is None:
             backbone = AsymmetricMASt3R.from_pretrained(ckpt_args.pretrained)

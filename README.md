@@ -22,40 +22,46 @@
 
 # Getting Started
 ## Installation
-```
-conda create -n mast3r-slam python=3.11
-conda activate mast3r-slam
-```
-Check the system's CUDA version with nvcc
-```
-nvcc --version
-```
-Install pytorch with **matching** CUDA version following:
-```
-# CUDA 11.8
-conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1  pytorch-cuda=11.8 -c pytorch -c nvidia
-# CUDA 12.1
-conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
-# CUDA 12.4
-conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.4 -c pytorch -c nvidia
+
+**Windows:** Run the automated setup script:
+```batch
+setup.bat
 ```
 
-Clone the repo and install the dependencies.
-```
+This creates a virtual environment and installs all dependencies. It will prompt you to choose your CUDA version.
+
+**Linux/macOS/WSL:** Manual setup:
+```bash
 git clone https://github.com/rmurai0610/MASt3R-SLAM.git --recursive
-cd MASt3R-SLAM/
+cd MASt3R-SLAM
 
-# if you've clone the repo without --recursive run
-# git submodule update --init --recursive
+# Create virtual environment
+python3.11 -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate.bat on Windows
 
-pip install -e thirdparty/mast3r
-pip install -e thirdparty/in3d
+# Upgrade build tools
+pip install --upgrade pip setuptools wheel
+
+# Check CUDA version
+nvcc --version
+
+# Install PyTorch (adjust cu128 to your CUDA version)
+pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
+
+# Install dependencies
+pip install -e thirdparty/mast3r --no-build-isolation
+pip install -e thirdparty/in3d --no-build-isolation
 pip install --no-build-isolation -e .
- 
 
-# Optionally install torchcodec for faster mp4 loading
+# Optional: faster mp4 loading
 pip install torchcodec==0.1
 ```
+
+**CUDA version mapping:**
+- CUDA 11.8: `cu118`
+- CUDA 12.1: `cu121`
+- CUDA 12.4: `cu124`
+- CUDA 12.8: `cu128`
 
 Setup the checkpoints for MASt3R and retrieval.  The license for the checkpoints and more information on the datasets used is written [here](https://github.com/naver/mast3r/blob/mast3r_sfm/CHECKPOINTS_NOTICE).
 ```

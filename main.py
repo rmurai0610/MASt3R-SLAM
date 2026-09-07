@@ -1,8 +1,13 @@
 import argparse
 import datetime
+import faulthandler
 import os
 import pathlib
 import sys
+
+# Print the Python stack at the moment of a native crash (e.g. the lietorch
+# CUDA access violation) instead of dying completely silently.
+faulthandler.enable()
 import time
 
 if sys.platform == "win32":
@@ -273,8 +278,11 @@ if __name__ == "__main__":
             frames.append(img)
 
         # get frames last camera pose
+        # device="cpu" (not `device`): lietorch's CUDA retr() kernel crashes
+        # on this GPU (RTX 5090/Blackwell) -- see frame.py's SharedStates for
+        # the full note.
         T_WC = (
-            lietorch.Sim3.Identity(1, device=device)
+            lietorch.Sim3.Identity(1, device="cpu")
             if i == 0
             else states.get_frame().T_WC
         )

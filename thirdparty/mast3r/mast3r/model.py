@@ -21,7 +21,11 @@ inf = float('inf')
 def load_model(model_path, device, verbose=True):
     if verbose:
         print('... loading model from', model_path)
-    ckpt = torch.load(model_path, map_location='cpu')
+    # weights_only=False: this checkpoint's 'args' entry is a pickled
+    # argparse.Namespace, which torch>=2.6's new weights_only=True default
+    # rejects. Safe here since model_path is the official MASt3R release
+    # checkpoint (get_models.bat), not an untrusted third-party file.
+    ckpt = torch.load(model_path, map_location='cpu', weights_only=False)
     args = ckpt['args'].model.replace("ManyAR_PatchEmbed", "PatchEmbedDust3R")
     if 'landscape_only' not in args:
         args = args[:-1] + ', landscape_only=False)'
