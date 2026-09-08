@@ -294,105 +294,89 @@ Listed in the rough order you'll hit them.
       inspection where an early exit doesn't matter.
 
 18. **Real, intermittent CUDA crash in the custom `gauss_newton_rays`
-    kernel -- STILL OPEN, root cause not yet found.** Distinct from the earlier lietorch
+    kernel -- ROOT CAUSED AND FIXED.** Distinct from the earlier lietorch
     crash (item covered near the top of this doc / see memory). Symptom:
     `RuntimeError: CUDA error: an illegal memory access was encountered` at
     `global_opt.py`'s `solve_GN_rays` -> `mast3r_slam_backends.gauss_newton_rays`,
     with a full C++ stack trace and a hard `Fatal Python error: Aborted` on
     process teardown. Reproduced across totally unrelated content (TUM
-    `freiburg3_long_office_household`, isekai `fdSe`/`llrz`, a Cyberpunk
-    2077 YouTube clip) with an inconsistent ~50% crash rate on identical
-    commands/data -- ruling out both "bad data" and a deterministic kernel
-    bug, and pointing at a race condition instead.
+    `freiburg3_long_office_household`, isekai `fdSe`/`llrz`/`nDvs_p0`, a
+    Cyberpunk 2077 YouTube clip) with an inconsistent crash rate on
+    identical commands/data.
 
-    Root-caused via NVIDIA's `compute-sanitizer` (ships with the CUDA
-    Toolkit, `<CUDA install>\bin\compute-sanitizer.bat`; no rebuild needed,
-    it instruments the existing compiled `.pyd` at runtime -- much slower
-    than normal, ~10-50x, so expect a long wait before it reaches a crash).
-    Run it in place of `python.exe`:
-    ```
-    "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\bin\compute-sanitizer.bat" --launch-timeout 0 .venv\Scripts\python.exe main.py --dataset ... --no-viz --save-as sanitizer_test
-    ```
-    It reported: `Invalid __global__ read of size 4 bytes` in
-    `ray_align_kernel` (thread 0, block 0), at an address **~4.4 TB** past
-    the nearest valid allocation -- far too large to be a simple off-by-one,
-    indicating a garbage/uninitialized index rather than a bounds bug in
-    the kernel math itself.
+    **Root cause: a CPU/CUDA device mismatch.** `T_WCs.data` (the camera
+    poses) lives on **CPU** -- forced there earlier this session as the fix
+    for a *different*, unrelated `lietorch` `.act()`/`.retr()` CUDA crash
+    (see `frame.py`'s `SharedStates` note / the other memory entry).
+    `solve_GN_rays`/`solve_GN_calib` built `pose_data = T_WCs.data[:, 0, :]`
+    and passed it straight into `mast3r_slam_backends.gauss_newton_rays`/
+    `gauss_newton_calib` -- CUDA-only kernels that read it via
+    `packed_accessor32<float,2,...>()`, treating the tensor's data pointer
+    as a device pointer. Reading a host pointer as if it were a device
+    pointer is exactly the kind of fault that produces a massive garbage
+    address, matching what `compute-sanitizer` had reported (~4.4 TB past
+    the nearest valid allocation, in `ray_align_kernel`). The existing
+    `torch.isfinite(pose_data).all()` guard never caught this because
+    `isfinite` works fine on CPU tensors -- it only checks values, never
+    device placement.
 
-    That kernel indexes `Twc[ix]`/`Twc[jx]` using `ix`/`jx` derived from
-    `factor_graph.ii`/`.jj`, which come from **shared keyframe data**
-    (`SharedKeyframes`, shared across the frontend/tracking process and the
-    backend/optimization process via multiprocessing shared memory).
+    **How this was actually found** (after extensively ruling out races,
+    `single_thread` sync mode, `nvcc`/`ptxas` Blackwell codegen -- both
+    native `sm_120` SASS and PTX-only/driver-JIT -- and async
+    misattribution via `CUDA_LAUNCH_BLOCKING=1`, none of which were the
+    cause or fixed it): built a **minimal standalone repro**
+    (`repro_gauss_newton_crash.py`) that calls
+    `mast3r_slam_backends.gauss_newton_rays` directly with synthetic data
+    matching the real crash's exact shapes -- this did NOT crash, proving
+    the bug was value-dependent, not shape-dependent. Then added a
+    `DUMP_GN_INPUTS=1` env-var-gated `torch.save()` right before the real
+    kernel call in `global_opt.py` to capture the *actual* crash-triggering
+    tensors from a live run, and replayed them in isolation
+    (`repro_gauss_newton_crash_real.py`) -- this reproduced the crash in
+    seconds instead of minutes, and the tensor dump's printed device list
+    immediately showed `pose_data: device=cpu` next to five other
+    `device=cuda:0` tensors. Moving `pose_data` to `Xs.device` before
+    replaying the exact same real data eliminated the crash. Verified
+    end-to-end afterward too.
 
-    **Ruled out**: a Python-level cross-process race on `SharedKeyframes`.
-    Initially suspected the main backend loop (`run_backend`, ~line 150)
-    read keyframe data without a lock while the frontend concurrently called
-    `keyframes.append(frame)` (unlike `relocalization()`, which already
-    wraps its equivalent call in `with keyframes.lock:`). Added matching
-    locks around every `keyframes.append()` call site and the backend's
-    `add_factors`/`solve_GN_rays` sequence -- crash still reproduced
-    immediately on `fdSe` afterward. On inspection, `SharedKeyframes.
-    __getitem__`/`__setitem__` (`frame.py`) already wrap themselves in
-    `self.lock` (a reentrant `RLock`) internally, so every individual
-    read/write was already atomic -- the added locks were redundant and
-    were reverted. **This is not the cause.**
+    **The fix**: `pose_data = T_WCs.data[:, 0, :].to(Xs.device)` in both
+    `solve_GN_rays` and `solve_GN_calib` (`global_opt.py`) -- the `.data`
+    stays CPU-resident everywhere else (unrelated to this fix, and still
+    needed for the lietorch issue), only this specific kernel-input copy
+    needs to move to CUDA.
 
-    A separate real bug was found in passing but does not explain this
-    crash either: `create_inds()`'s `searchsorted(...) - pin` can produce
-    `-1` for edges touching the pinned (fixed) keyframe when `pin=1`; torch/
-    CUDA indexing silently treats `-1` as "last element" rather than
-    faulting, so it's a correctness bug (wrong row used), not a memory
-    fault, and doesn't match the `ray_align_kernel` crash site.
+    **Lesson for next time this kind of bug shows up**: when a fix forces
+    a tensor to a non-default device to work around one crash, audit
+    *every* downstream consumer of that tensor for an implicit
+    same-device assumption -- not just the code path that originally
+    crashed. `solve_GN_calib` had the identical bug and would have kept
+    crashing (explaining the "intermittent" TUM crashes earlier this
+    session) even after `solve_GN_rays` was fixed, because it's a
+    separate call site nobody thought to check until doing a full grep for
+    the same pattern.
 
-    **Status: still unexplained.** The `.item()` call inside the existing
-    NaN/Inf guard (`global_opt.py:140`, added earlier this session) already
-    forces a full CUDA stream sync immediately before the kernel launch, so
-    it's not a simple missing-`cuda.synchronize()`-between-kernels issue
-    either.
+    **Reusable debugging technique** (worth keeping for future native-crash
+    hunts in this or other multiprocess/GPU codebases): when a crash is too
+    fast/complex to debug in the full running app, (1) add an env-var-gated
+    `torch.save()` dump of every argument right before the crashing native
+    call, (2) trigger one real crash to populate the dump, (3) write a
+    ~20-line standalone script that loads the dump and replays just that
+    one call. This turns a multi-minute, multi-process, hard-to-instrument
+    repro into a single-process, sub-second one -- and simply *printing the
+    loaded tensors' shapes/dtypes/devices* is often enough to spot the bug
+    immediately, as it was here.
 
-    **Also ruled out: timing/race entirely.** Tested `config["single_thread"]
-    = True` (existing config knob -- frontend blocks and waits for the
-    backend after every keyframe, fully synchronous, no async race possible
-    at any level). Crash still reproduced identically. Reverted afterward
-    (`config/base.yaml`, `single_thread: False`) since it didn't help and
-    only adds overhead.
+    **End-to-end confirmation**: re-ran the fix on `nDvs_p0` (flying_town),
+    the one scene that had never survived past its very first
+    `solve_GN_rays` call all session (crashed on attempt after attempt at
+    `num_poses=2`) -- with the fix, it ran cleanly past 135+ keyframes and
+    counting, far beyond anything seen before on this content.
 
-    **Also ruled out: bad/out-of-bounds data.** Added temporary debug prints
-    + a bounds check in `global_opt.py`'s `solve_GN_rays` (right before the
-    kernel call) dumping `num_poses`, `num_points`, `idx_ii2jj` min/max,
-    `ii`/`jj` max, edge count. Ran on the very first possible call (2
-    keyframes, 1 edge -- as simple as this ever gets):
-    `num_poses=2 num_points=147456 num_edges=2 idx_ii2jj range=[0,147455]`
-    -- every value provably in-bounds (`idx_ii2jj` max exactly equals
-    `num_points-1`) -- yet it still crashed identically. Rules out bad
-    indices, shape mismatches, and races completely.
-
-    **Tested and ruled out: `nvcc`/`ptxas` Blackwell codegen bug.** Changed
-    `setup.py`'s CUDA gencode flags to remove native `sm_120` SASS
-    compilation entirely, replacing it with `-gencode=arch=compute_90,
-    code=compute_90` (PTX only) -- this makes the CUDA driver JIT-compile
-    from compute_90 PTX at first kernel launch instead of using `nvcc`'s
-    ahead-of-time Blackwell codegen, a genuinely different compiler code
-    path. Successfully rebuilt `mast3r_slam_backends` (see build gotchas
-    below) and re-tested: **crash reproduced identically** (same
-    `num_poses=2` debug values, same `ray_align_kernel` fault). This rules
-    out `nvcc`/`ptxas` ahead-of-time Blackwell codegen as the cause -- the
-    bug survives a completely different compilation path. `setup.py` was
-    left with the PTX-only change since it's at least not worse than
-    native SASS.
-
-    **Status: root cause still not found**, after ruling out races,
-    `single_thread` mode, bad/OOB data, and now `nvcc` Blackwell codegen.
-    Next real step if resumed: audit `SparseBlock::update_lhs`/`solve()` in
-    `gn_kernels.cu` for unguarded indices -- there's a separate, confirmed
-    real bug where `create_inds()`'s `searchsorted(...) - pin` can yield
-    `-1` for the pinned keyframe (torch/CUDA silently treats `-1` as "last
-    element" rather than faulting there), and it's worth checking whether
-    `SparseBlock`'s own internal indexing does the same silent-wrap instead
-    of faulting, potentially corrupting adjacent memory rather than just
-    picking the wrong row.
-
-    **Build gotchas** (cost significant time to work through): must run
+    **Build gotchas** (cost significant time to work through, kept for
+    reference even though the root cause turned out to not need a rebuild
+    at all -- the PTX-only `setup.py` change from the ruled-out `nvcc`
+    codegen theory was left in place since it's not worse than native
+    SASS): must run
     from a genuine "x64 Native Tools Command Prompt for VS 2022" window (a
     separate Start-Menu application, plain `cmd.exe` prompt) -- **not**
     "Developer PowerShell for VS 2022" (unreliable per item 2 above) and

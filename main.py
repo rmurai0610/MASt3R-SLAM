@@ -341,7 +341,9 @@ if __name__ == "__main__":
         # log time
         if i % 30 == 0:
             FPS = i / (time.time() - fps_timer)
-            print(f"FPS: {FPS}")
+            n_total = len(dataset)
+            pct = 100.0 * i / n_total if n_total else 0.0
+            print(f"FPS: {FPS:.2f}  frame {i}/{n_total} ({pct:.1f}%)  keyframes={len(keyframes)}")
         i += 1
 
     if dataset.save_results:

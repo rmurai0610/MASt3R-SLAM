@@ -28,6 +28,11 @@ if has_cuda:
     sources.append("mast3r_slam/backend/src/matching_kernels.cu")
     extra_compile_args["nvcc"] = [
         "-O3",
+        # embed source line info (does NOT disable optimizations like -G
+        # would) so compute-sanitizer can report exact .cu line numbers
+        # instead of just kernel names, for the gauss_newton_rays crash
+        # investigation (see SETUP_TROUBLESHOOTING.md item 18).
+        "-lineinfo",
         "-gencode=arch=compute_60,code=sm_60",
         "-gencode=arch=compute_61,code=sm_61",
         "-gencode=arch=compute_70,code=sm_70",

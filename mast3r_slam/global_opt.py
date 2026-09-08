@@ -136,7 +136,17 @@ class FactorGraph:
         sigma_dist = self.cfg["sigma_dist"]
         delta_thresh = self.cfg["delta_norm"]
 
-        pose_data = T_WCs.data[:, 0, :]
+        # T_WCs.data lives on CPU (forced there as the fix for a separate,
+        # unrelated lietorch .act()/.retr() CUDA crash -- see frame.py's
+        # SharedStates note). gauss_newton_rays is a different custom CUDA
+        # kernel with no such lietorch dependency; it needs its pose input
+        # on the same device as Xs. Passing a CPU tensor into this kernel's
+        # packed_accessor32 (which treats it as a device pointer) caused a
+        # genuine illegal-memory-access crash -- root-caused by dumping the
+        # real inputs and replaying them in isolation (repro_gauss_newton_
+        # crash_real.py) after the CPU-tensor mismatch was noticed directly
+        # in the dump.
+        pose_data = T_WCs.data[:, 0, :].to(Xs.device)
         if not (torch.isfinite(pose_data).all() and torch.isfinite(Xs).all()):
             raise RuntimeError(
                 f"solve_GN_rays: non-finite input before gauss_newton_rays -- "
@@ -163,6 +173,30 @@ class FactorGraph:
                 f"solve_GN_rays: idx_ii2jj out of range for Xs point dim -- "
                 f"idx range=[{idx_min},{idx_max}] but num_points={num_points}"
             )
+        import os
+        import time as _time
+        _gn_start = _time.time()
+        if os.environ.get("DUMP_GN_INPUTS"):
+            torch.save(
+                {
+                    "pose_data": pose_data,
+                    "Xs": Xs,
+                    "Cs": Cs,
+                    "ii": ii,
+                    "jj": jj,
+                    "idx_ii2jj": idx_ii2jj,
+                    "valid_match": valid_match,
+                    "Q_ii2jj": Q_ii2jj,
+                    "sigma_ray": sigma_ray,
+                    "sigma_dist": sigma_dist,
+                    "C_thresh": C_thresh,
+                    "Q_thresh": Q_thresh,
+                    "max_iter": max_iter,
+                    "delta_thresh": delta_thresh,
+                },
+                "gn_inputs_dump.pt",
+            )
+            print("Dumped real gauss_newton_rays inputs to gn_inputs_dump.pt", flush=True)
         mast3r_slam_backends.gauss_newton_rays(
             pose_data,
             Xs,
@@ -179,6 +213,7 @@ class FactorGraph:
             max_iter,
             delta_thresh,
         )
+        print(f"[solve_GN_rays debug] solve took {_time.time() - _gn_start:.2f}s", flush=True)
 
         # Update the keyframe T_WC
         self.frames.update_T_WCs(T_WCs[pin:], unique_kf_idx[pin:])
@@ -208,7 +243,10 @@ class FactorGraph:
         sigma_depth = self.cfg["sigma_depth"]
         delta_thresh = self.cfg["delta_norm"]
 
-        pose_data = T_WCs.data[:, 0, :]
+        # See solve_GN_rays's identical fix: T_WCs.data lives on CPU (forced
+        # there for the separate lietorch crash fix), but this CUDA kernel
+        # needs it on the same device as Xs.
+        pose_data = T_WCs.data[:, 0, :].to(Xs.device)
 
         img_size = self.frames[0].img.shape[-2:]
         height, width = img_size
