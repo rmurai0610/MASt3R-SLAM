@@ -179,6 +179,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-as", default="default")
     parser.add_argument("--no-viz", action="store_true")
     parser.add_argument("--calib", default="")
+    parser.add_argument("--skip-frames", type=int, default=0)
 
     args = parser.parse_args()
 
@@ -191,6 +192,7 @@ if __name__ == "__main__":
     viz2main = new_queue(manager, args.no_viz)
 
     dataset = load_dataset(args.dataset)
+    dataset.skip_frames(args.skip_frames)
     dataset.subsample(config["dataset"]["subsample"])
     h, w = dataset.get_img_shape()[0]
 
@@ -254,6 +256,13 @@ if __name__ == "__main__":
     frames = []
 
     while True:
+        if not backend.is_alive():
+            print("Backend process died (crashed) -- stopping instead of hanging.")
+            states.set_mode(Mode.TERMINATED)
+            if not args.no_viz and viz.is_alive():
+                viz.terminate()
+            break
+
         mode = states.get_mode()
         msg = try_get_msg(viz2main)
         last_msg = msg if msg is not None else last_msg

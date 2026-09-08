@@ -89,6 +89,31 @@ def download_tum():
             extract_tar(file_path, dest)
 
 
+def download_tum_walkthrough():
+    """Download longer, walkthrough-style TUM-RGBD sequences (freiburg2/3),
+    not part of the shorter freiburg1 desk/room set in download_tum()."""
+    print("\n=== TUM-RGBD Walkthrough Sequences (freiburg2/3) ===")
+    dest = create_dir("datasets/tum")
+
+    urls = [
+        "https://cvg.cit.tum.de/rgbd/dataset/freiburg2/rgbd_dataset_freiburg2_large_with_loop.tgz",
+        "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_long_office_household.tgz",
+    ]
+
+    for url in urls:
+        file_name = url.split('/')[-1]
+        file_path = os.path.join(dest, file_name)
+
+        if os.path.exists(file_path):
+            print(f"Already downloaded: {file_path}")
+        else:
+            if not download_file(url, file_path):
+                continue
+
+        if file_path.endswith('.tgz'):
+            extract_tar(file_path, dest)
+
+
 def download_euroc():
     """Download EuRoC Dataset."""
     print("\n=== EuRoC Dataset ===")
@@ -175,6 +200,7 @@ Examples:
     )
 
     parser.add_argument('--tum', action='store_true', help='Download TUM-RGBD dataset')
+    parser.add_argument('--tum-walkthrough', dest='tum_walkthrough', action='store_true', help='Download longer walkthrough-style TUM-RGBD sequences (freiburg2/3)')
     parser.add_argument('--euroc', action='store_true', help='Download EuRoC dataset')
     parser.add_argument('--7scenes', dest='seven_scenes', action='store_true', help='Info about 7-Scenes dataset')
     parser.add_argument('--eth3d', action='store_true', help='Info about ETH3D dataset')
@@ -183,7 +209,7 @@ Examples:
 
     args = parser.parse_args()
 
-    if not any([args.tum, args.euroc, args.seven_scenes, args.eth3d, args.list, args.all]):
+    if not any([args.tum, args.tum_walkthrough, args.euroc, args.seven_scenes, args.eth3d, args.list, args.all]):
         parser.print_help()
         return
 
@@ -193,6 +219,9 @@ Examples:
 
     if args.tum or args.all:
         download_tum()
+
+    if args.tum_walkthrough or args.all:
+        download_tum_walkthrough()
 
     if args.euroc or args.all:
         download_euroc()

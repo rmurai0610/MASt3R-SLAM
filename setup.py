@@ -36,13 +36,17 @@ if has_cuda:
         "-gencode=arch=compute_86,code=sm_86",
         "-gencode=arch=compute_89,code=sm_89",
         "-gencode=arch=compute_90,code=sm_90",
-        # RTX 5090 / Blackwell -- missing from the original list, which would
-        # otherwise compile fine here but fail at runtime with "no kernel
-        # image is available for execution on the device" on this GPU.
-        "-gencode=arch=compute_120,code=sm_120",
-        # PTX fallback on the newest arch, for forward compatibility with
-        # architectures newer than any of the above.
-        "-gencode=arch=compute_120,code=compute_120",
+        # RTX 5090 / Blackwell: deliberately NOT compiling native sm_120 SASS
+        # here. gauss_newton_rays's ray_align_kernel produces an intermittent
+        # illegal-memory-access with provably in-bounds inputs when compiled
+        # native for sm_120 (root-caused via compute-sanitizer + Python-side
+        # bounds prints -- see SETUP_TROUBLESHOOTING.md item 18) -- suspected
+        # nvcc/ptxas codegen bug specific to this very new architecture.
+        # Embedding compute_90 PTX instead makes the CUDA driver JIT-compile
+        # it for sm_120 at first kernel launch (a different code path/JIT
+        # compiler than nvcc's ahead-of-time sm_120 codegen), as an
+        # experiment to route around the suspected bug.
+        "-gencode=arch=compute_90,code=compute_90",
     ]
     ext_modules = [
         CUDAExtension(

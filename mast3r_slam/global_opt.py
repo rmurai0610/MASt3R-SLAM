@@ -137,6 +137,32 @@ class FactorGraph:
         delta_thresh = self.cfg["delta_norm"]
 
         pose_data = T_WCs.data[:, 0, :]
+        if not (torch.isfinite(pose_data).all() and torch.isfinite(Xs).all()):
+            raise RuntimeError(
+                f"solve_GN_rays: non-finite input before gauss_newton_rays -- "
+                f"pose_data finite={torch.isfinite(pose_data).all().item()} "
+                f"Xs finite={torch.isfinite(Xs).all().item()} "
+                f"pose_data.device={pose_data.device} Xs.device={Xs.device}"
+            )
+        num_points = Xs.shape[1]
+        idx_max = idx_ii2jj.max().item() if idx_ii2jj.numel() else -1
+        idx_min = idx_ii2jj.min().item() if idx_ii2jj.numel() else -1
+        print(
+            f"[solve_GN_rays debug] num_poses={pose_data.shape[0]} "
+            f"num_points(Xs.shape[1])={num_points} num_edges={ii.shape[0]} "
+            f"idx_ii2jj.shape={tuple(idx_ii2jj.shape)} "
+            f"idx_ii2jj range=[{idx_min},{idx_max}] "
+            f"valid_match.shape={tuple(valid_match.shape)} "
+            f"ii.max={ii.max().item() if ii.numel() else -1} "
+            f"jj.max={jj.max().item() if jj.numel() else -1} "
+            f"unique_kf_idx.numel={n_unique_kf}",
+            flush=True,
+        )
+        if idx_max >= num_points or idx_min < 0:
+            raise RuntimeError(
+                f"solve_GN_rays: idx_ii2jj out of range for Xs point dim -- "
+                f"idx range=[{idx_min},{idx_max}] but num_points={num_points}"
+            )
         mast3r_slam_backends.gauss_newton_rays(
             pose_data,
             Xs,
