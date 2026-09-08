@@ -468,6 +468,34 @@ Listed in the rough order you'll hit them.
     view_result.bat logs\cyberpunk_test\rgb.ply logs\cyberpunk_test\rgb.txt --frustum-stride 5
     ```
 
+24. **`view_result.py --groundtruth` overlay**: added Sim(3)-alignment
+    (via `evo`'s own Python API, matching `evo_ape`/`evo_traj -a -s`) so a
+    ground-truth trajectory can be shown alongside the estimate in the same
+    `open3d` window, correctly scaled/aligned rather than plotted in its
+    own raw coordinate frame. Ground truth renders as gray frustums;
+    estimate keeps its green/yellow/red start/mid/end coloring.
+
+25. **Added better progress reporting**: `main.py`'s FPS print now also
+    shows `frame i/total (pct%)` and current `keyframes=N` count (was just
+    a bare FPS number before, impossible to tell "slow" from "stuck" or
+    estimate an ETA). `global_opt.py`'s `solve_GN_rays` now also prints how
+    long each bundle-adjustment solve itself took, since solve cost grows
+    with graph size and a large-but-legitimate solve can look identical to
+    a hang from the console alone. Only applies to runs started after this
+    change -- an in-progress run won't retroactively show the new format.
+
+26. **GPU contention from accumulated leftover `python.exe` processes**:
+    after many runs (crashed, manually killed, or backgrounded) across a
+    long session, leftover processes can pile up without being fully
+    cleaned up -- observed 14 simultaneous `python.exe` processes with the
+    GPU at 31.3/32.6 GB memory and 99% utilization, causing a new run to
+    crawl at ~0.22 FPS (vs. the normal ~6-8 FPS) and fail to add new
+    keyframes at all (not enough compute headroom per frame). Symptom looks
+    like a hang/regression but is actually GPU starvation. Fix: `tasklist
+    /FI "IMAGENAME eq python.exe"` to check process count, kill stale ones
+    (with the user's confirmation -- this loses any in-progress runs) to
+    free the GPU before retrying.
+
 15. **Capturing build output to a log file for diagnosis**: in Windows
     PowerShell 5.1 (not 7+), `Tee-Object -FilePath X -Encoding utf8` errors
     with "parameter cannot be found" -- PS 5.1's `Tee-Object` has no
