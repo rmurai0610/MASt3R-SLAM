@@ -496,6 +496,34 @@ Listed in the rough order you'll hit them.
     (with the user's confirmation -- this loses any in-progress runs) to
     free the GPU before retrying.
 
+27. **CUDA out-of-memory on long videos -- fixed with sliding-window
+    pruning.** After the gauss_newton_rays device-mismatch fix (item 18)
+    was confirmed working (no more illegal-memory-access crashes), a real
+    `nDvs_p0` run got to 75.3% of a 9000-frame video (211 keyframes, 934
+    edges) before hitting a genuine `RuntimeError: CUDA error: out of
+    memory`. Root cause: `local_opt.window_size` (`config/base.yaml`) was
+    set to `1e+6` -- effectively unbounded -- and more importantly, was
+    never actually *used* anywhere in `global_opt.py` despite being read
+    into `FactorGraph.window_size` in `__init__`. The factor graph kept
+    every edge from every keyframe forever; per-edge tensors
+    (`idx_ii2jj`, `valid_match_*`, `Q_*`) scale with `num_edges *
+    num_points` (147456 default patch grid), so a long video's graph grows
+    without bound.
+
+    **Fix**: added real sliding-window pruning
+    (`FactorGraph._prune_old_edges`, called from `add_factors`) -- edges
+    where *both* endpoints are older than `window_size` keyframes behind
+    the newest one get dropped permanently (they've already served their
+    purpose; both sides were mutually localized when the edge formed).
+    Edges with only one old endpoint (a loop closure from a recent
+    keyframe back to an old one) are kept, so loop closing still works
+    within the window. Changed the previously-unused `window_size: 1e+6`
+    default to `150` (a real, applied bound now). This does NOT reduce how
+    many frames get processed/tracked -- every keyframe's pose still gets
+    saved to the final trajectory regardless of pruning; it only bounds
+    which *old, already-resolved* edges stay in the active optimization's
+    GPU memory.
+
 15. **Capturing build output to a log file for diagnosis**: in Windows
     PowerShell 5.1 (not 7+), `Tee-Object -FilePath X -Encoding utf8` errors
     with "parameter cannot be found" -- PS 5.1's `Tee-Object` has no

@@ -95,8 +95,40 @@ class FactorGraph:
         self.Q_ii2jj = torch.cat([self.Q_ii2jj, Qj])
         self.Q_jj2ii = torch.cat([self.Q_jj2ii, Qi])
 
+        self._prune_old_edges()
+
         added_new_edges = valid_edges.sum() > 0
         return added_new_edges
+
+    def _prune_old_edges(self):
+        # Sliding-window memory bound: the per-edge tensors (idx_ii2jj,
+        # valid_match_*, Q_*) each scale with num_edges * num_points
+        # (147456 for MASt3R's default patch grid), so an ever-growing
+        # factor graph on a long video eventually hits CUDA OOM (observed
+        # in practice around ~900 edges / 200+ keyframes on a 32GB GPU).
+        # Edges where BOTH endpoints are older than window_size frames
+        # behind the newest keyframe have already served their purpose
+        # (both sides were already mutually localized when the edge was
+        # formed) -- drop them permanently. Edges with only one old
+        # endpoint (a loop closure from a recent keyframe back to an old
+        # one) are kept, so loop closing still works within the window.
+        if self.ii.numel() == 0:
+            return
+        newest = torch.max(self.ii.max(), self.jj.max())
+        cutoff = newest - self.window_size
+        if cutoff <= 0:
+            return
+        keep = (self.ii >= cutoff) | (self.jj >= cutoff)
+        if keep.all():
+            return
+        self.ii = self.ii[keep]
+        self.jj = self.jj[keep]
+        self.idx_ii2jj = self.idx_ii2jj[keep]
+        self.idx_jj2ii = self.idx_jj2ii[keep]
+        self.valid_match_j = self.valid_match_j[keep]
+        self.valid_match_i = self.valid_match_i[keep]
+        self.Q_ii2jj = self.Q_ii2jj[keep]
+        self.Q_jj2ii = self.Q_jj2ii[keep]
 
     def get_unique_kf_idx(self):
         return torch.unique(torch.cat([self.ii, self.jj]), sorted=True)
