@@ -1,10 +1,33 @@
 import argparse
 import datetime
+import faulthandler
+import os
 import pathlib
 import sys
+
+# Print the Python stack at the moment of a native crash (e.g. the lietorch
+# CUDA access violation) instead of dying completely silently.
+faulthandler.enable()
 import time
+
+if sys.platform == "win32":
+    # mast3r_slam_backends.pyd links against the CUDA Toolkit's cudart DLL by
+    # its system install path (CUDA\vX.Y\bin), which torch's own DLL-directory
+    # registration (torch/lib only) does not cover -- without this, import
+    # fails with "ImportError: DLL load failed ... could not be found" even
+    # though every dependency DLL genuinely exists on disk.
+    _cuda_bin = os.environ.get(
+        "CUDA_PATH", r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8"
+    )
+    _cuda_bin = os.path.join(_cuda_bin, "bin")
+    if os.path.isdir(_cuda_bin):
+        os.add_dll_directory(_cuda_bin)
+
 import cv2
-import lietorch
+try:
+    import lietorch
+except:
+    pass
 import torch
 import tqdm
 import yaml
@@ -156,6 +179,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-as", default="default")
     parser.add_argument("--no-viz", action="store_true")
     parser.add_argument("--calib", default="")
+    parser.add_argument("--skip-frames", type=int, default=0)
 
     args = parser.parse_args()
 
@@ -168,6 +192,7 @@ if __name__ == "__main__":
     viz2main = new_queue(manager, args.no_viz)
 
     dataset = load_dataset(args.dataset)
+    dataset.skip_frames(args.skip_frames)
     dataset.subsample(config["dataset"]["subsample"])
     h, w = dataset.get_img_shape()[0]
 
@@ -231,6 +256,13 @@ if __name__ == "__main__":
     frames = []
 
     while True:
+        if not backend.is_alive():
+            print("Backend process died (crashed) -- stopping instead of hanging.")
+            states.set_mode(Mode.TERMINATED)
+            if not args.no_viz and viz.is_alive():
+                viz.terminate()
+            break
+
         mode = states.get_mode()
         msg = try_get_msg(viz2main)
         last_msg = msg if msg is not None else last_msg
@@ -255,8 +287,11 @@ if __name__ == "__main__":
             frames.append(img)
 
         # get frames last camera pose
+        # device="cpu" (not `device`): lietorch's CUDA retr() kernel crashes
+        # on this GPU (RTX 5090/Blackwell) -- see frame.py's SharedStates for
+        # the full note.
         T_WC = (
-            lietorch.Sim3.Identity(1, device=device)
+            lietorch.Sim3.Identity(1, device="cpu")
             if i == 0
             else states.get_frame().T_WC
         )
@@ -306,7 +341,9 @@ if __name__ == "__main__":
         # log time
         if i % 30 == 0:
             FPS = i / (time.time() - fps_timer)
-            print(f"FPS: {FPS}")
+            n_total = len(dataset)
+            pct = 100.0 * i / n_total if n_total else 0.0
+            print(f"FPS: {FPS:.2f}  frame {i}/{n_total} ({pct:.1f}%)  keyframes={len(keyframes)}")
         i += 1
 
     if dataset.save_results:

@@ -56,6 +56,14 @@ class MonocularDataset(torch.utils.data.Dataset):
         # 3XHxW, HxWx3 -> HxW, HxW
         return img["img"][0].shape[1:], raw_img_shape[:2]
 
+    def skip_frames(self, n):
+        if n <= 0:
+            return
+        if self.rgb_files:
+            self.rgb_files = self.rgb_files[n:]
+            if len(self.timestamps):
+                self.timestamps = self.timestamps[n:]
+
     def subsample(self, subsample):
         self.rgb_files = self.rgb_files[::subsample]
         self.timestamps = self.timestamps[::subsample]
@@ -244,23 +252,30 @@ class MP4Dataset(MonocularDataset):
             self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         self.stride = config["dataset"]["subsample"]
+        self.frame_offset = 0
+
+    def skip_frames(self, n):
+        if n <= 0:
+            return
+        self.frame_offset += n
 
     def __len__(self):
-        return self.total_frames // self.stride
+        return max(0, self.total_frames // self.stride - self.frame_offset)
 
     def read_img(self, idx):
+        real_idx = idx + self.frame_offset
         if HAS_TORCHCODEC:
-            img = self.decoder[idx * self.stride]  # c,h,w
+            img = self.decoder[real_idx * self.stride]  # c,h,w
             img = img.permute(1, 2, 0)
             img = img.numpy()
         else:
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, idx * self.stride)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, real_idx * self.stride)
             ret, img = self.cap.read()
             if not ret:
                 raise ValueError("Failed to read image")
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = img.astype(self.dtype)
-        timestamp = idx / self.fps
+        timestamp = real_idx / self.fps
         self.timestamps.append(timestamp)
         return img
 

@@ -146,7 +146,12 @@ class SharedStates:
         self.uimg = torch.zeros(h, w, 3, device="cpu", dtype=dtype).share_memory_()
         self.img_shape = torch.zeros(1, 2, device=device, dtype=torch.int).share_memory_()
         self.img_true_shape = torch.zeros(1, 2, device=device, dtype=torch.int).share_memory_()
-        self.T_WC = lietorch.Sim3.Identity(1, device=device, dtype=dtype).data.share_memory_()
+        # device="cpu" (not `device`): lietorch's CUDA retr() kernel crashes
+        # with an access violation on this GPU (RTX 5090/Blackwell) -- a real
+        # upstream bug, confirmed via isolated repro (CPU retr works fine).
+        # Pose math is tiny compared to image/model tensors, so keeping T_WC
+        # on CPU avoids the broken kernel with negligible cost.
+        self.T_WC = lietorch.Sim3.Identity(1, device="cpu", dtype=dtype).data.share_memory_()
         self.X = torch.zeros(h * w, 3, device=device, dtype=dtype).share_memory_()
         self.C = torch.zeros(h * w, 1, device=device, dtype=dtype).share_memory_()
         self.feat = torch.zeros(1, self.num_patches, self.feat_dim, device=device, dtype=dtype).share_memory_()
@@ -236,7 +241,9 @@ class SharedKeyframes:
         self.uimg = torch.zeros(buffer, h, w, 3, device="cpu", dtype=dtype).share_memory_()
         self.img_shape = torch.zeros(buffer, 1, 2, device=device, dtype=torch.int).share_memory_()
         self.img_true_shape = torch.zeros(buffer, 1, 2, device=device, dtype=torch.int).share_memory_()
-        self.T_WC = torch.zeros(buffer, 1, lietorch.Sim3.embedded_dim, device=device, dtype=dtype).share_memory_()
+        # device="cpu": see the same note in SharedStates.__init__ above --
+        # lietorch's CUDA retr() crashes on this GPU, CPU works fine.
+        self.T_WC = torch.zeros(buffer, 1, lietorch.Sim3.embedded_dim, device="cpu", dtype=dtype).share_memory_()
         self.X = torch.zeros(buffer, h * w, 3, device=device, dtype=dtype).share_memory_()
         self.C = torch.zeros(buffer, h * w, 1, device=device, dtype=dtype).share_memory_()
         self.N = torch.zeros(buffer, device=device, dtype=torch.int).share_memory_()

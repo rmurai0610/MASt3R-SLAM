@@ -34,7 +34,15 @@ tracking:
 
 local_opt:
   pin: 1
-  window_size: 1e+6   
+  # Sliding-window bound on the bundle-adjustment graph (see FactorGraph.
+  # _prune_old_edges in global_opt.py): edges where both endpoints are
+  # older than this many keyframes behind the newest get dropped, since
+  # per-edge tensors scale with num_edges * num_points (147456) and an
+  # unbounded graph (the old 1e6 "basically infinite" default) eventually
+  # hits CUDA OOM on long videos (observed ~900 edges / 200+ keyframes on
+  # a 32GB GPU). 150 keeps real memory headroom while still allowing loop
+  # closures within a ~150-keyframe range.
+  window_size: 150
   C_conf: 0.0
   Q_conf: 1.5
   min_match_frac: 0.1

@@ -95,7 +95,10 @@ class FrameTracker:
         frame.T_WC = T_WCf
 
         # Use pose to transform points to update keyframe
-        Xkk = T_CkCf.act(Xkf)
+        # lietorch's CUDA kernels crash on this GPU (see frame.py's
+        # SharedStates note) -- do act() on CPU, restore Xkf's device after.
+        _orig_device = Xkf.device
+        Xkk = T_CkCf.cpu().act(Xkf.cpu()).to(_orig_device)
         keyframe.update_pointmap(Xkk, Ckf)
         # write back the fitered pointmap
         self.keyframes[len(self.keyframes) - 1] = keyframe
@@ -192,7 +195,7 @@ class FrameTracker:
             J = -drd_f_Ck_dXf_Ck @ dXf_Ck_dT_CkCf
 
             tau_ij_sim3, new_cost = self.solve(sqrt_info, r, J)
-            T_CkCf = T_CkCf.retr(tau_ij_sim3)
+            T_CkCf = T_CkCf.retr(tau_ij_sim3.cpu())
 
             if check_convergence(
                 step,
@@ -244,7 +247,7 @@ class FrameTracker:
             J = -dpzf_Ck_dXf_Ck @ dXf_Ck_dT_CkCf
 
             tau_ij_sim3, new_cost = self.solve(sqrt_info2, r, J)
-            T_CkCf = T_CkCf.retr(tau_ij_sim3)
+            T_CkCf = T_CkCf.retr(tau_ij_sim3.cpu())
 
             if check_convergence(
                 step,
