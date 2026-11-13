@@ -10,7 +10,7 @@
 #include <ATen/NativeFunctions.h>
 #include <ATen/Parallel.h>
 
-#include <cuda/std/limits>
+#include <limits>
 
 #define BLOCK 16
 
@@ -26,8 +26,8 @@ template <typename scalar_t>
 __global__ void refine_matches_kernel(
     const torch::PackedTensorAccessor32<scalar_t,4,torch::RestrictPtrTraits> D11,
     const torch::PackedTensorAccessor32<scalar_t,3,torch::RestrictPtrTraits> D21,
-    const torch::PackedTensorAccessor32<long,3,torch::RestrictPtrTraits> p1,
-    torch::PackedTensorAccessor32<long,3,torch::RestrictPtrTraits> p1_new,
+    const torch::PackedTensorAccessor32<int64_t,3,torch::RestrictPtrTraits> p1,
+    torch::PackedTensorAccessor32<int64_t,3,torch::RestrictPtrTraits> p1_new,
     const int radius,
     const int dilation_max
     )
@@ -41,20 +41,20 @@ __global__ void refine_matches_kernel(
   const int fdim = D11.size(3);
 
   // Get pixel and its features
-  long u0 = p1[b][n][0];
-  long v0 = p1[b][n][1];
+  int64_t u0 = p1[b][n][0];
+  int64_t v0 = p1[b][n][1];
 
-  scalar_t max_score = ::cuda::std::numeric_limits<scalar_t>::min();
-  long u_new = u0;
-  long v_new = v0;
+  scalar_t max_score = std::numeric_limits<scalar_t>::min();
+  int64_t u_new = u0;
+  int64_t v_new = v0;
 
   for (int d=dilation_max; d>0; d--) {
     const int rd = radius*d;
     const int diam = 2*rd + 1;
     for (int i=0; i<diam; i+=d) {
       for (int j=0; j<diam; j+=d) {
-        const long u = u0 - rd + i;
-        const long v = v0 - rd + j;
+        const int64_t u = u0 - rd + i;
+        const int64_t v = v0 - rd + j;
 
         if (inside_image(u, v, w, h)) {
           scalar_t score = 0.0;
@@ -100,12 +100,12 @@ std::vector<torch::Tensor> refine_matches_cuda(
   torch::Tensor p1_new = torch::zeros(
     {batch_size, n, 2}, opts);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(D11.type(), "refine_matches_kernel", ([&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(D11.scalar_type(), "refine_matches_kernel", ([&] {
     refine_matches_kernel<scalar_t><<<blocks, threads>>>(
       D11.packed_accessor32<scalar_t,4,torch::RestrictPtrTraits>(),
       D21.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
-      p1.packed_accessor32<long,3,torch::RestrictPtrTraits>(),
-      p1_new.packed_accessor32<long,3,torch::RestrictPtrTraits>(),
+      p1.packed_accessor32<int64_t,3,torch::RestrictPtrTraits>(),
+      p1_new.packed_accessor32<int64_t,3,torch::RestrictPtrTraits>(),
       radius,
       dilation
     );
